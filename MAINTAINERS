@@ -6309,6 +6309,13 @@ F:	drivers/mtd/ubi/
 F:	include/linux/mtd/ubi.h
 F:	include/mtd/ubi-user.h
 
+UNIONFS
+P:	Josef "Jeff" Sipek
+M:	jsipek@cs.sunysb.edu
+L:	unionfs@filesystems.org
+W:	http://www.unionfs.org
+S:	Maintained
+
 USB ACM DRIVER
 M:	Oliver Neukum <oliver@neukum.name>
 L:	linux-usb@vger.kernel.org
