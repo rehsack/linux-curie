@@ -6310,6 +6310,8 @@ F:	include/linux/mtd/ubi.h
 F:	include/mtd/ubi-user.h
 
 UNIONFS
+P:	Erez Zadok
+M:	ezk@cs.sunysb.edu
 P:	Josef "Jeff" Sipek
 M:	jsipek@cs.sunysb.edu
 L:	unionfs@filesystems.org
