@@ -520,6 +520,7 @@ int security_inode_permission(struct inode *inode, int mask)
 		return 0;
 	return security_ops->inode_permission(inode, mask, 0);
 }
+EXPORT_SYMBOL(security_inode_permission);
 
 int security_inode_exec_permission(struct inode *inode, unsigned int flags)
 {
@@ -641,6 +642,7 @@ int security_file_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	return security_ops->file_ioctl(file, cmd, arg);
 }
+EXPORT_SYMBOL(security_file_ioctl);
 
 int security_file_mmap(struct file *file, unsigned long reqprot,
 			unsigned long prot, unsigned long flags,
