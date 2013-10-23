@@ -688,12 +688,18 @@ static inline void imx28_ehci_writel(const unsigned int val,
 {
 }
 #endif
+
 static inline void ehci_writel(const struct ehci_hcd *ehci,
 		const unsigned int val, __u32 __iomem *regs)
 {
 #ifdef CONFIG_USB_EHCI_BIG_ENDIAN_MMIO
 	ehci_big_endian_mmio(ehci) ?
 		writel_be(val, regs) :
+		writel(val, regs);
+#elif defined(CONFIG_SOC_IMX28)
+	if (ehci->imx28_write_fix)
+		imx28_ehci_writel(val, regs);
+	else
 		writel(val, regs);
 #else
 	if (ehci->imx28_write_fix)
