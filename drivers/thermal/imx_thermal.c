@@ -319,6 +319,18 @@ static int imx_get_sensor_data(struct platform_device *pdev)
 	data->c1 = temp64;
 	data->c2 = n1 * data->c1 + 1000 * t1;
 
+	/*
+	 * Set the default passive cooling trip point,
+	 * can be changed from userspace.
+	 */
+	data->temp_passive = IMX_TEMP_PASSIVE;
+
+	/*
+	 * The maximum die temperature set to 20 C higher than
+	 * IMX_TEMP_PASSIVE.
+	 */
+	data->temp_critical = 1000 * 20 + data->temp_passive;
+
 	return 0;
 }
 
