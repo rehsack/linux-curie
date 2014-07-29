@@ -23,6 +23,7 @@
  */
 
 #include <linux/thermal.h>
+#include <trace/events/thermal.h>
 
 #include "thermal_core.h"
 
@@ -121,8 +122,10 @@ static void thermal_zone_trip_update(struct thermal_zone_device *tz, int trip)
 
 	trend = get_tz_trend(tz, trip);
 
-	if (tz->temperature >= trip_temp)
+	if (tz->temperature >= trip_temp) {
 		throttle = true;
+		trace_thermal_zone_trip(tz, trip, trip_type);
+	}
 
 	mutex_lock(&tz->lock);
 
