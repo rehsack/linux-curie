@@ -1,0 +1,21 @@
+/*
+ * Copyright 2014 Shanghai Zhixing Information Technology Co.Ltd
+ *
+ * The code contained herein is licensed under the GNU General Public
+ * License. You may obtain a copy of the GNU General Public License
+ * Version 2 or later at the following locations:
+ *
+ * http://www.opensource.org/licenses/gpl-license.html
+ * http://www.gnu.org/copyleft/gpl.html
+ */
+
+/dts-v1/;
+
+#include "imx6q.dtsi"
+#include "imx6qdl-curie.dtsi"
+
+/ {
+	model = "WindSolve i.MX6 Quad Curie Board";
+	compatible = "ws,imx6q-curie", "fsl,imx6q";
+};
+
