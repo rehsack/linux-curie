@@ -57,6 +57,16 @@
 		};
 	};
 
+	gpio-keys {
+		compatible = "gpio-keys";
+		enter-key {
+			label = "enter";
+			gpios = <&gpio3 5 GPIO_ACTIVE_LOW>;
+			linux,code = <28>; /* KEY_ENTER */
+			gpio-key,wakeup;
+		};
+	};
+
 };
 
 &uart1 {
