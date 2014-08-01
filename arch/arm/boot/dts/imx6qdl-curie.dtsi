@@ -20,6 +20,43 @@
 		reset-delay-us = <1000>;
 		#reset-cells = <0>;
 	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		boot-led {
+			label = "boot";
+			gpios = <&gpio7 12 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "heartbeat";
+			retain-state-suspended;
+			default-state = "off";
+		};
+		wifi-led {
+			label = "wifi";
+			gpios = <&gpio1 6 GPIO_ACTIVE_LOW>;
+			retain-state-suspended;
+			default-state = "off";
+		};
+		error-led {
+			label = "error";
+			gpios = <&gpio1 1 GPIO_ACTIVE_LOW>;
+			retain-state-suspended;
+			default-state = "off";
+		};
+		user1-led {
+			label = "user1";
+			gpios = <&gpio1 2 GPIO_ACTIVE_LOW>;
+			retain-state-suspended;
+			default-state = "off";
+		};
+		user2-led {
+			label = "user2";
+			gpios = <&gpio1 9 GPIO_ACTIVE_LOW>;
+			retain-state-suspended;
+			default-state = "off";
+		};
+	};
+
 };
 
 &uart1 {
