@@ -21,3 +21,15 @@
 	status = "okay";
 };
 
+&usbh1 {
+	disable-over-current;
+	status = "okay";
+};
+
+&usbotg {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usbotg_2>;
+	disable-over-current;
+	status = "okay";
+};
+
