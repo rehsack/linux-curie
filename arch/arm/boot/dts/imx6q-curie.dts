@@ -19,3 +19,6 @@
 	compatible = "ws,imx6q-curie", "fsl,imx6q";
 };
 
+&sata {
+	status = "okay";
+};
