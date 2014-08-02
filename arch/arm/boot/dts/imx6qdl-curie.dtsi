@@ -17,6 +17,13 @@
 		reg = <0x10000000 0x40000000>;
 	};
 
+	enet-reset {
+		compatible = "gpio-reset";
+		reset-gpios = <&gpio1 25 GPIO_ACTIVE_LOW>;
+		reset-delay-us = <100>;
+		#reset-cells = <0>;
+	};
+
 	wifi_cs: wifi-cs {
 		compatible = "gpio-reset";
 		reset-gpios = <&gpio2 4 GPIO_ACTIVE_HIGH>;
