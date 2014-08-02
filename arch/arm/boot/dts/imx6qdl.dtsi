@@ -1480,6 +1480,12 @@
 				MX6QDL_PAD_GPIO_17__SPDIF_OUT 0x1b0b0
 			>;
 		};
+
+		pinctrl_spdif_3: spdifgrp-3 {
+			fsl,pins = <
+				MX6QDL_PAD_ENET_RXD0__SPDIF_OUT 0x1b0b0
+			>;
+		};
 	};
 
 	uart1 {

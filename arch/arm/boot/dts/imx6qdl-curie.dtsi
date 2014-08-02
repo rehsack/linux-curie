@@ -93,6 +93,13 @@
 		status = "okay";
 	};
 
+	sound-spdif {
+		compatible = "fsl,imx-audio-spdif",
+			   "fsl,imx-curie-spdif";
+		model = "imx-spdif";
+		spdif-controller = <&spdif>;
+		spdif-out;
+	};
 };
 
 &uart1 {
@@ -304,6 +311,12 @@
 &hdmi_core {
 	ipu_id = <0>;
 	disp_id = <0>;
+	status = "okay";
+};
+
+&spdif {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_spdif_3>;
 	status = "okay";
 };
 
