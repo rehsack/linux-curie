@@ -145,6 +145,7 @@ struct hdmi_phy_reg_config {
 	/* HDMI PHY register config for pass HCT */
 	u16 reg_vlev;
 	u16 reg_cksymtx;
+	u16 reg_txterm;
 };
 
 struct mxc_hdmi {
@@ -1216,8 +1217,11 @@ static int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 	if (hdmi->phy_config.reg_cksymtx != 0)
 		hdmi_phy_i2c_write(hdmi, hdmi->phy_config.reg_cksymtx, 0x09);
 
-	if (hdmi->phy_config.reg_vlev != 0)
+	if (hdmi->phy_config.reg_vlev >= 0 && hdmi->phy_config.reg_vlev <= 1023)
 		hdmi_phy_i2c_write(hdmi, hdmi->phy_config.reg_vlev, 0x0E);
+
+	if (hdmi->phy_config.reg_txterm >= 0 && hdmi->phy_config.reg_txterm <= 7)
+		hdmi_phy_i2c_write(hdmi, hdmi->phy_config.reg_txterm, 0x19);  /* TXTERM */
 
 	/* REMOVE CLK TERM */
 	hdmi_phy_i2c_write(hdmi, 0x8000, 0x05);  /* CKCALCTRL */
@@ -1692,8 +1696,12 @@ static void mxc_hdmi_enable_video_path(struct mxc_hdmi *hdmi)
 	hdmi_writeb(0x16, HDMI_FC_CH1PREAM);
 	hdmi_writeb(0x21, HDMI_FC_CH2PREAM);
 
+	/* Save CEC clock */
+	clkdis = hdmi_readb(HDMI_MC_CLKDIS) & HDMI_MC_CLKDIS_CECCLK_DISABLE;
+	clkdis |= ~HDMI_MC_CLKDIS_CECCLK_DISABLE;
+
 	/* Enable pixel clock and tmds data path */
-	clkdis = 0x7F;
+	clkdis = 0x7F & clkdis;
 	clkdis &= ~HDMI_MC_CLKDIS_PIXELCLK_DISABLE;
 	hdmi_writeb(clkdis, HDMI_MC_CLKDIS);
 
@@ -1962,10 +1970,16 @@ static void mxc_hdmi_power_off(struct mxc_dispdrv_handle *disp)
 
 static void mxc_hdmi_cable_disconnected(struct mxc_hdmi *hdmi)
 {
+	u8  clkdis;
+
 	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
 
+	/* Save CEC clock */
+	clkdis = hdmi_readb(HDMI_MC_CLKDIS) & HDMI_MC_CLKDIS_CECCLK_DISABLE;
+	clkdis |= ~HDMI_MC_CLKDIS_CECCLK_DISABLE;
+
 	/* Disable All HDMI clock */
-	hdmi_writeb(0xff, HDMI_MC_CLKDIS);
+	hdmi_writeb(0xff & clkdis, HDMI_MC_CLKDIS);
 
 	mxc_hdmi_phy_disable(hdmi);
 
@@ -2410,7 +2424,7 @@ static void hdmi_get_of_property(struct mxc_hdmi *hdmi)
 	const struct of_device_id *of_id =
 			of_match_device(imx_hdmi_dt_ids, &pdev->dev);
 	int ret;
-	u32 phy_reg_vlev = 0, phy_reg_cksymtx = 0;
+	u32 phy_reg_vlev = 0, phy_reg_cksymtx = 0, phy_reg_txterm = 0;
 
 	if (of_id) {
 		pdev->id_entry = of_id->data;
@@ -2430,9 +2444,14 @@ static void hdmi_get_of_property(struct mxc_hdmi *hdmi)
 	if (ret)
 		dev_dbg(&pdev->dev, "No board specific HDMI PHY cksymtx\n");
 
+	ret = of_property_read_u32(np, "fsl,phy_reg_txterm", &phy_reg_txterm);
+	if (ret)
+		dev_dbg(&pdev->dev, "No board specific HDMI PHY txterm\n");
+
 	/* Specific phy config */
 	hdmi->phy_config.reg_cksymtx = phy_reg_cksymtx;
 	hdmi->phy_config.reg_vlev = phy_reg_vlev;
+	hdmi->phy_config.reg_txterm = phy_reg_txterm;
 
 }
 
