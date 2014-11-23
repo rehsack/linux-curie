@@ -34,5 +34,19 @@
 #define HDMICEC_IOC_STOPDEVICE	_IO(HDMICEC_IOC_MAGIC,  3)
 #define HDMICEC_IOC_GETPHYADDRESS	\
 				_IOR(HDMICEC_IOC_MAGIC, 4, unsigned char[4])
+#define HDMICEC_IOC_LOG \
+				_IOW(HDMICEC_IOC_MAGIC, 5, unsigned char[255])
+
+#define MAX_MESSAGE_LEN                         16
+#define MAX_MESSAGE_RETRY                       5
+
+#define MESSAGE_TYPE_RECEIVE_SUCCESS            1
+#define MESSAGE_TYPE_NOACK                      2
+#define MESSAGE_TYPE_DISCONNECTED               3
+#define MESSAGE_TYPE_CONNECTED                  4
+#define MESSAGE_TYPE_SEND_SUCCESS               5
+
+#define SIGNAL_FREE_TIME_NORMAL			BIT(1)
+#define SIGNAL_FREE_TIME_RESEND			0
 
 #endif				/* !_HDMICEC_H_ */

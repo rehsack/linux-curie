@@ -8,4 +8,18 @@ config MXC_HDMI_CEC
 	help
 	  The HDMI CEC device implement low level protocol on i.MX6x platforms.
 
+config MXC_HDMI_CEC_SHR
+	tristate "Support for MXC HDMI CEC with shared access (multiple clients)"
+	depends on ((MFD_MXC_HDMI && FB_MXC_HDMI) && !MXC_HDMI_CEC)
+	help
+	  The HDMI CEC device implement low level protocol on i.MX6x platforms.
+          (this variant allows concurrent access by more user level processes.
+           it handles clients independently - providing each with own LA and PA.
+           PA is derived from adapter's physical PA by creating new sub-tree
+           on CEC bus eg. 2.2.0.0 will become in case of two clients:
+
+                client1 = 2.2.x.0, client2 = 2.2.y.0,
+
+           where x/y is respective client's LA).
+
 endmenu

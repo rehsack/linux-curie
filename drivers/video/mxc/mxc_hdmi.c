@@ -203,7 +203,7 @@ static bool hdmi_inited;
 static bool hdcp_init;
 
 extern const struct fb_videomode mxc_cea_mode[64];
-extern void mxc_hdmi_cec_handle(u16 cec_stat);
+extern void mxc_hdmi_cec_handle(u32 cec_stat);
 
 static void mxc_hdmi_setup(struct mxc_hdmi *hdmi, unsigned long event);
 static void hdmi_enable_overflow_interrupts(void);
@@ -2069,11 +2069,12 @@ static void mxc_hdmi_cable_disconnected(struct mxc_hdmi *hdmi)
 	clkdis |= ~HDMI_MC_CLKDIS_CECCLK_DISABLE;
 
 	/* Disable All HDMI clock */
-	hdmi_writeb(0xff & clkdis, HDMI_MC_CLKDIS);
+	hdmi_writeb(0x7f, HDMI_MC_CLKDIS);
 
 	mxc_hdmi_phy_disable(hdmi);
 
 	hdmi_disable_overflow_interrupts();
+	hdmi_writeb(clkdis, HDMI_MC_CLKDIS);
 
 	hdmi->cable_plugin = false;
 }
@@ -2103,8 +2104,9 @@ static void hotplug_worker(struct work_struct *work)
 
 			sprintf(event_string, "EVENT=plugin");
 			kobject_uevent_env(&hdmi->pdev->dev.kobj, KOBJ_CHANGE, envp);
-#ifdef CONFIG_MXC_HDMI_CEC
-			mxc_hdmi_cec_handle(0x80);
+#if defined(CONFIG_MXC_HDMI_CEC) || defined(CONFIG_MXC_HDMI_CEC_SHR)
+			memcpy(&pa, &hdmi->edid_cfg.physical_address, 4 *sizeof(u8));
+			mxc_hdmi_cec_handle(pa);
 #endif
 			hdmi_set_cable_state(1);
 		} else {
@@ -2116,8 +2118,8 @@ static void hotplug_worker(struct work_struct *work)
 
 			sprintf(event_string, "EVENT=plugout");
 			kobject_uevent_env(&hdmi->pdev->dev.kobj, KOBJ_CHANGE, envp);
-#ifdef CONFIG_MXC_HDMI_CEC
-			mxc_hdmi_cec_handle(0x100);
+#if defined(CONFIG_MXC_HDMI_CEC) || defined(CONFIG_MXC_HDMI_CEC_SHR)
+			mxc_hdmi_cec_handle(0);
 #endif
 		}
 	}
