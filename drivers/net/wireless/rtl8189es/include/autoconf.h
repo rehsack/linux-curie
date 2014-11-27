@@ -41,11 +41,11 @@
 #define CONFIG_SDIO_HCI
 #define PLATFORM_LINUX
 
-//#define CONFIG_IOCTL_CFG80211
+#define CONFIG_IOCTL_CFG80211
 
 #ifdef CONFIG_IOCTL_CFG80211
-	//#define RTW_USE_CFG80211_STA_EVENT /* Indecate new sta asoc through cfg80211_new_sta */
-	#define CONFIG_CFG80211_FORCE_COMPATIBLE_2_6_37_UNDER
+	#define RTW_USE_CFG80211_STA_EVENT /* Indecate new sta asoc through cfg80211_new_sta */
+	//#define CONFIG_CFG80211_FORCE_COMPATIBLE_2_6_37_UNDER
 	//#define CONFIG_DEBUG_CFG80211
 	#define CONFIG_SET_SCAN_DENY_TIMER
 #endif
@@ -60,7 +60,7 @@
 #define CONFIG_80211N_HT
 #define CONFIG_RECV_REORDERING_CTRL
 
-//#define CONFIG_CONCURRENT_MODE
+#define CONFIG_CONCURRENT_MODE
 #ifdef CONFIG_CONCURRENT_MODE
 	#define CONFIG_TSF_RESET_OFFLOAD		// For 2 PORT TSF SYNC.
 	//#define CONFIG_HWPORT_SWAP				//Port0->Sec , Port1 -> Pri
@@ -277,15 +277,15 @@
 /*
  * Debug Related Config
  */
-#define DBG	1
+#define DBG	0
 
-#define CONFIG_DEBUG /* DBG_871X, etc... */
+//#define CONFIG_DEBUG /* DBG_871X, etc... */
 //#define CONFIG_DEBUG_RTL871X /* RT_TRACE, RT_PRINT_DATA, _func_enter_, _func_exit_ */
 
 #define CONFIG_PROC_DEBUG
 
-#define DBG_CONFIG_ERROR_DETECT
-#define DBG_CONFIG_ERROR_RESET
+//#define DBG_CONFIG_ERROR_DETECT
+//#define DBG_CONFIG_ERROR_RESET
 
 //#define DBG_IO
 //#define DBG_DELAY_OS

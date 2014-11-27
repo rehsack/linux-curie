@@ -192,7 +192,7 @@ int rtw_dmsp = 0;
 #endif	// CONFIG_DUALMAC_CONCURRENT
 
 #ifdef CONFIG_80211D
-int rtw_80211d = 0;
+int rtw_80211d = 1;
 #endif
 
 #ifdef CONFIG_SPECIAL_SETTING_FOR_FUNAI_TV
