@@ -13,6 +13,7 @@
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/device_cooling.h>
+#include <linux/fsl_otp.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
@@ -44,21 +45,22 @@
 
 #define OCOTP_ANA1			0x04e0
 
+#define OCOTP_TEMP_GRADE		0x480
+#define OCOTP_TEMP_GRADE_SHIFT		5
+#define OCOTP_TEMP_GRADE_AUT		0x3
+#define OCOTP_TEMP_GRADE_IND		0x2
+#define OCOTP_TEMP_GRADE_EXT		0x1
+#define OCOTP_TEMP_GRADE_COM		0x0
+
 /*
  * It defines the temperature in millicelsius for passive trip point
  * that will trigger cooling action when crossed.
  */
-#define IMX_TEMP_PASSIVE		85000
-#define IMX_TEMP_PASSIVE_COOL_DELTA	10000
+#define IMX_TEMP_MAX_PASSIVE		85000
+#define IMX_TEMP_MIN_TRIP_DELTA		6000
 
-/*
- * The maximum die temperature on imx parts is 105C, let's give some cushion
- * for noise and possible temperature rise between measurements.
- */
-#define IMX_TEMP_CRITICAL		100000
-
-#define IMX_POLLING_DELAY		2000 /* millisecond */
-#define IMX_PASSIVE_DELAY		1000
+#define IMX_POLLING_DELAY		3000 /* millisecond */
+#define IMX_PASSIVE_DELAY		2000
 
 #define FACTOR0				10000000
 #define FACTOR1				15976
@@ -73,9 +75,10 @@ struct imx_thermal_data {
 	struct regmap *tempmon;
 	unsigned long trip_temp[IMX_TRIP_NUM];
 	u32 c1, c2; /* See formula in imx_get_sensor_data() */
-	unsigned long num_passive_trips;
 	unsigned long temp_passive;
 	unsigned long temp_critical;
+	unsigned long num_passive_trips;
+	unsigned long temp_zone_delta;
 	unsigned long alarm_temp;
 	unsigned long last_temp;
 	bool irq_enabled;
@@ -89,7 +92,7 @@ static int imx_get_temp(struct thermal_zone_device *tz, unsigned long *temp)
 	struct regmap *map = data->tempmon;
 	static unsigned long last_temp;
 	unsigned int n_meas;
-	unsigned long cur_state, temp_passive_delta;
+	unsigned long cur_state;
 	bool wait;
 	u32 val;
 
@@ -123,13 +126,17 @@ static int imx_get_temp(struct thermal_zone_device *tz, unsigned long *temp)
 	*temp = data->c2 - n_meas * data->c1;
 
 	data->cdev[0]->ops->get_cur_state(data->cdev[0], &cur_state);
-	temp_passive_delta = (data->temp_critical - data->temp_passive) / data->num_passive_trips;
 
 	/* Update alarm value to next higher trip point */
-	if (data->alarm_temp < data->temp_critical && cur_state < data->num_passive_trips)
-		imx_set_alarm_temp(data, data->temp_passive + ((cur_state + 1) * temp_passive_delta));
+	if ((data->temp_passive < data->alarm_temp)  && 
+	    (data->alarm_temp < data->temp_critical) &&
+	    (cur_state < data->num_passive_trips)) {
+		imx_set_alarm_temp(data, data->temp_passive + ((cur_state + 1) * data->temp_zone_delta));
+		dev_dbg(&tz->device, "thermal alarm on: T < %lu\n",
+			data->alarm_temp / 1000);
+	}
 
-	if (data->alarm_temp < data->temp_critical && *temp >= data->temp_passive + (data->num_passive_trips * temp_passive_delta))
+	if (data->alarm_temp < data->temp_critical && *temp >= data->temp_passive + (data->num_passive_trips * data->temp_zone_delta))
 		imx_set_alarm_temp(data, data->temp_critical);
 
 	if (data->alarm_temp > data->temp_passive && *temp < data->temp_passive) {
@@ -200,10 +207,9 @@ static int imx_get_trip_temp(struct thermal_zone_device *tz, int trip,
 			     unsigned long *temp)
 {
 	struct imx_thermal_data *data = tz->devdata;
-	unsigned long temp_passive_delta = (data->temp_critical - data->temp_passive) / data->num_passive_trips;
 
 	*temp = (trip < data->num_passive_trips) ?
-			data->temp_passive + (trip * temp_passive_delta) :
+			data->temp_passive + (trip * data->temp_zone_delta) :
 			data->temp_critical;
 	return 0;
 }
@@ -216,10 +222,11 @@ static int imx_set_trip_temp(struct thermal_zone_device *tz, int trip,
 	if (trip > IMX_TRIP_PASSIVE)
 		return -EPERM;
 
-	if (trip == IMX_TRIP_PASSIVE && temp > IMX_TEMP_PASSIVE)
+	if (trip == IMX_TRIP_PASSIVE && temp > IMX_TEMP_MAX_PASSIVE)
 		return -EINVAL;
 
 	data->temp_passive = temp;
+	data->temp_zone_delta = (data->temp_critical - data->temp_passive) / data->num_passive_trips;
 
 	imx_set_alarm_temp(data, temp);
 
@@ -265,21 +272,22 @@ static int imx_get_trend(struct thermal_zone_device *tz,
 {
 	struct imx_thermal_data *data = tz->devdata;
 	int ret;
-	unsigned long trip_temp, cur_state, temp_passive_delta;
+	unsigned long trip_temp, cur_state;
 
 	ret = imx_get_trip_temp(tz, trip, &trip_temp);
 	if (ret < 0)
 		return ret;
 
 	data->cdev[0]->ops->get_cur_state(data->cdev[0], &cur_state);
-	temp_passive_delta = (data->temp_critical - data->temp_passive) / data->num_passive_trips;
 
-	if (tz->temperature > tz->last_temperature && tz->temperature > (data->temp_passive + (cur_state * temp_passive_delta))) {
+	if (tz->temperature > tz->last_temperature &&
+	    tz->temperature > (data->temp_passive + (cur_state * data->temp_zone_delta))) {
 		*trend = THERMAL_TREND_RAISING;
 	} else if (tz->temperature < tz->last_temperature && cur_state) {
-		if (tz->temperature <= (data->temp_passive - temp_passive_delta))
+		if (tz->temperature <= (data->temp_passive - data->temp_zone_delta))
 			*trend = THERMAL_TREND_DROP_FULL;
-		else if (tz->temperature <= (data->temp_passive + ((cur_state - 1) * temp_passive_delta)))
+		else if (tz->temperature <= (data->temp_passive +
+					     ((cur_state - 1) * data->temp_zone_delta)))
 			*trend = THERMAL_TREND_DROPPING;
 		else
 			*trend = THERMAL_TREND_STABLE;
@@ -362,19 +370,55 @@ static int imx_get_sensor_data(struct platform_device *pdev)
 	data->c1 = temp64;
 	data->c2 = n1 * data->c1 + 1000 * t1;
 
-	/*
-	 * Set the default passive cooling trip point,
-	 * can be changed from userspace.
-	 */
-	data->temp_passive = IMX_TEMP_PASSIVE;
-
-	/*
-	 * The maximum die temperature set to 20 C higher than
-	 * IMX_TEMP_PASSIVE.
-	 */
-	data->temp_critical = 1000 * 20 + data->temp_passive;
-
 	return 0;
+}
+
+static void imx_set_thermal_defaults(struct imx_thermal_data *data)
+{
+	int ret;
+	u32 val;
+
+	ret = fsl_otp_readl(OCOTP_TEMP_GRADE, &val);
+
+	if (ret) {
+		/*
+		 * Set the default passive cooling trip point,
+		 * can be changed from userspace.
+		 */
+		data->temp_passive = IMX_TEMP_MAX_PASSIVE;
+
+		/*
+		 * The maximum die temperature set to 20 C higher than
+		 * IMX_TEMP_MAX_PASSIVE.
+		 */
+		data->temp_critical = 1000 * 20 + data->temp_passive;
+		data->temp_zone_delta = (data->temp_critical - data->temp_passive) / data->num_passive_trips;
+	} else {
+		val >>= OCOTP_TEMP_GRADE_SHIFT;
+		val &= 0x3;
+
+		switch (val) {
+		case OCOTP_TEMP_GRADE_AUT:
+			data->temp_critical = 125000;
+			break;
+		case OCOTP_TEMP_GRADE_IND:
+		case OCOTP_TEMP_GRADE_EXT:
+			data->temp_critical = 105000;
+			break;
+		case OCOTP_TEMP_GRADE_COM:
+		default:
+			data->temp_critical = 95000;
+			break;
+		}
+		data->temp_passive = data->temp_critical - (IMX_TEMP_MIN_TRIP_DELTA * data->num_passive_trips);
+		data->temp_zone_delta = IMX_TEMP_MIN_TRIP_DELTA;
+	}
+
+	pr_debug("THERMAL DEFAULTS: passive: %lu \
+		 critical %lu trip_points: %lu \
+		 zone_delta: %lu\n", 
+		 data->temp_passive, data->temp_critical,
+		 data->num_passive_trips, data->temp_zone_delta);
 }
 
 static int imx_thermal_probe(struct platform_device *pdev)
@@ -471,8 +515,8 @@ static int imx_thermal_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	data->trip_temp[IMX_TRIP_PASSIVE] = IMX_TEMP_PASSIVE;
-	data->trip_temp[IMX_TRIP_CRITICAL] = IMX_TEMP_CRITICAL;
+	imx_set_thermal_defaults(data);
+
 	data->tz = thermal_zone_device_register("imx_thermal_zone",
 						data->num_passive_trips + 1,
 						BIT(IMX_TRIP_PASSIVE), data,
