@@ -23,6 +23,7 @@
 #include "gc_hal_kernel_platform.h"
 #include "gc_hal_kernel_device.h"
 #include "gc_hal_driver.h"
+#include <linux/reset.h>
 #include <linux/slab.h>
 #include <linux/of_platform.h>
 #include <linux/of_gpio.h>
