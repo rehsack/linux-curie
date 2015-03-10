@@ -452,7 +452,7 @@ static const char *imx6q_dt_compat[] __initconst = {
 	NULL,
 };
 
-DT_MACHINE_START(IMX6Q, "Freescale i.MX6 Quad/DualLite (Device Tree)")
+DT_MACHINE_START(IMX6Q, "Vero")
 	/*
 	 * i.MX6Q/DL maps system memory at 0x10000000 (offset 256MiB), and
 	 * GPU has a limit on physical address that it accesses, which must

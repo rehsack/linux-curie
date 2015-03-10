@@ -1,0 +1,13 @@
+/*
+ * Copyright (C) 2014 Russell King
+ * Copyright (C) 2015 Sam G Nazarko
+ */
+/dts-v1/;
+
+#include "imx6dl.dtsi"
+#include "imx6qdl-vero.dtsi"
+
+/ {
+	model = "OSMC Vero Rev 1.0";
+	compatible = "osmc,vero1", "fsl,imx6dl";
+};
