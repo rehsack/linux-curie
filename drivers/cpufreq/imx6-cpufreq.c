@@ -305,6 +305,11 @@ static int imx6_cpufreq_probe(struct platform_device *pdev)
 			unsigned long volt = be32_to_cpup(val++);
 			if (freq_table[j].frequency == freq) {
 				imx6_soc_volt[soc_opp_count++] = volt;
+			if (freq == 792000) {
+				pr_info("increase SOC/PU voltage for VPU352MHz\n");
+				imx6_soc_volt[soc_opp_count-1] = 1250000;
+				}
+	
 				break;
 			}
 		}

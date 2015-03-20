@@ -713,6 +713,10 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	/* Set pll4_audio to a value that can derive 5K-88.2KHz and 8K-96KHz */
 	clk_set_rate(clk[pll4_audio_div], 541900800);
 
+	clk_set_rate(clk[pll2_pfd2_396m], 352000000);
+	clk_set_parent(clk[vpu_axi_sel], clk[pll2_pfd2_396m]);
+
+
 	/* Set initial power mode */
 	imx6q_set_lpm(WAIT_CLOCKED);
 

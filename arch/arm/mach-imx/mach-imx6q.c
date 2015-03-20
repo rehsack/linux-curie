@@ -364,6 +364,10 @@ static void __init imx6q_opp_init(void)
 		pr_warn("failed to init OPP table\n");
 		goto put_node;
 	}
+	if (dev_pm_opp_disable(cpu_dev, 396000000)) {
+		pr_warn("failed to disable 396MHz OPP\n");
+		pr_info("remove 396MHz OPP for VPU running at 352MHz!\n");
+	}
 
 	imx6q_opp_check_speed_grading(cpu_dev);
 
