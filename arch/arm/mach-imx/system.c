@@ -32,6 +32,7 @@
 #include "common.h"
 #include "hardware.h"
 
+static void __iomem *src_base;
 static void __iomem *wdog_base;
 static void __iomem *wdog2_base;
 static struct clk *wdog_clk;
@@ -43,6 +44,28 @@ static u32 wdog_source = 1; /* use WDOG1 default */
 void mxc_restart(char mode, const char *cmd)
 {
 	unsigned int wcr_enable;
+
+	/* To change the bootcfg by software for curie board:
+	   1. load required bootcfg to SRC_GPR9 (0x020d8040)
+	   2. set bit 28 of SRC_GPR10 (0x020d8044)
+	   3. then reset the system
+
+	   to return to normal boot mode, clear SRC_GPR10[28]
+	 */
+	// eMMC 1-bit mode
+	if(src_base) {
+		u32 bmsr1 = __raw_readl(src_base + 0x4 /* BMSR1 */);
+		//u32 gpr9 = __raw_readl(src_base + 0x40 /* GPR9 */);
+		u32 gpr10 = __raw_readl(src_base + 0x44 /* GPR10 */);
+
+		if(bmsr1 == 0x4000d860) {
+			// original mode is eMMC 8-bit DDR boot
+			__raw_writel(0x40001860, src_base + 0x40 /* GPR9 */);
+			__raw_writel(gpr10 | 0x10000000, src_base + 0x44/* GPR10 */);
+		} else {
+			// original mode is SD boot, unchanged
+		}
+	};
 
 	if (wdog_clk)
 		clk_enable(wdog_clk);
@@ -98,7 +121,14 @@ void __init mxc_arch_reset_init(void __iomem *base)
 
 void __init mxc_arch_reset_init_dt(void)
 {
+	struct device_node *np_src = NULL;
 	struct device_node *np = NULL;
+
+	if (cpu_is_imx6q() || cpu_is_imx6dl()) {
+		np_src = of_find_compatible_node(NULL, NULL, "fsl,imx6q-src");
+		if(np_src)
+			src_base = of_iomap(np_src, 0);
+	}
 
 	if (cpu_is_imx6q() || cpu_is_imx6dl())
 		np = of_find_compatible_node(NULL, NULL, "fsl,imx6q-gpc");
