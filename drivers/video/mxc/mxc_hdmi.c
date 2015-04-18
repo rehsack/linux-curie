@@ -1835,6 +1835,7 @@ static void  mxc_hdmi_default_modelist(struct mxc_hdmi *hdmi)
 {
 	u32 i;
 	const struct fb_videomode *mode;
+	struct fb_videomode m;
 
 	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
 
@@ -1851,6 +1852,9 @@ static void  mxc_hdmi_default_modelist(struct mxc_hdmi *hdmi)
 		if (!(mode->vmode & FB_VMODE_INTERLACED) && (mode->xres != 0))
 			fb_add_videomode(mode, &hdmi->fbi->modelist);
 	}
+
+	fb_var_to_videomode(&m, &hdmi->fbi->var);
+	fb_add_videomode(&m, &hdmi->fbi->modelist);
 
 	fb_new_modelist(hdmi->fbi);
 
