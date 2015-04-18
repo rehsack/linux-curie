@@ -189,7 +189,8 @@ const struct fb_videomode mxc_cea_mode[64] = {
  */
 int mxc_edid_fb_mode_is_equal(bool use_aspect,
 			const struct fb_videomode *mode1,
-			const struct fb_videomode *mode2)
+			const struct fb_videomode *mode2,
+			u32 mode_mask)
 {
 	u32 mask;
 
@@ -210,7 +211,8 @@ int mxc_edid_fb_mode_is_equal(bool use_aspect,
 		/* refresh check, 59.94Hz and 60Hz have the same parameter
 		 * in struct of mxc_cea_mode */
 		abs(mode1->refresh - mode2->refresh) <= 1 &&
-		(mode1->vmode & mask) == (mode2->vmode & mask));
+		(mode1->vmode & mask & mode_mask) ==
+		(mode2->vmode & mask & mode_mask));
 }
 EXPORT_SYMBOL(mxc_edid_fb_mode_is_equal);
 
@@ -452,6 +454,7 @@ int mxc_edid_parse_ext_blk(unsigned char *edid,
 
 						if (hdmi_3d_len > 0) {
 							if (hdmi_3d_present) {
+								cfg->hdmi_3d_present = hdmi_3d_present;
 								if (hdmi_3d_multi_present == 0x1) {
 									cfg->hdmi_3d_struct_all = (edid[index] << 8) | edid[index+1];
 									index_inc = 2;
@@ -461,6 +464,8 @@ int mxc_edid_parse_ext_blk(unsigned char *edid,
 									index_inc = 4;
 								} else
 									index_inc = 0;
+								cfg->hdmi_3d_len = hdmi_3d_len - index_inc;
+								cfg->hdmi_3d_multi_present = hdmi_3d_multi_present;
 							}
 
 							DPRINTK("HDMI 3d struct all =0x%x\n", cfg->hdmi_3d_struct_all);
@@ -693,7 +698,7 @@ int mxc_edid_var_to_vic(struct fb_var_screeninfo *var)
 
 	for (i = 0; i < ARRAY_SIZE(mxc_cea_mode); i++) {
 		fb_var_to_videomode(&m, var);
-		if (mxc_edid_fb_mode_is_equal(false, &m, &mxc_cea_mode[i]))
+		if (mxc_edid_fb_mode_is_equal(false, &m, &mxc_cea_mode[i], FB_VMODE_MASK))
 			break;
 	}
 
@@ -704,13 +709,14 @@ int mxc_edid_var_to_vic(struct fb_var_screeninfo *var)
 }
 EXPORT_SYMBOL(mxc_edid_var_to_vic);
 
-int mxc_edid_mode_to_vic(const struct fb_videomode *mode)
+int mxc_edid_mode_to_vic(const struct fb_videomode *mode, u32 mode_mask)
 {
 	int i;
 	bool use_aspect = (mode->vmode & FB_VMODE_ASPECT_MASK);
+	u32 use_mask = mode_mask ? mode_mask : FB_VMODE_MASK ^ FB_VMODE_3D_MASK;
 
 	for (i = 0; i < ARRAY_SIZE(mxc_cea_mode); i++) {
-		if (mxc_edid_fb_mode_is_equal(use_aspect, mode, &mxc_cea_mode[i]))
+		if (mxc_edid_fb_mode_is_equal(use_aspect, mode, &mxc_cea_mode[i], use_mask))
 			break;
 	}
 
@@ -760,3 +766,44 @@ int mxc_edid_read(struct i2c_adapter *adp, unsigned short addr,
 	return 0;
 }
 EXPORT_SYMBOL(mxc_edid_read);
+
+const struct fb_videomode *mxc_fb_find_nearest_mode(const struct fb_videomode *mode,
+						    struct list_head *head)
+{
+	struct list_head *pos;
+	struct fb_modelist *modelist;
+	struct fb_videomode *cmode, *best = NULL;
+	u32 diff = -1, diff_refresh = -1;
+
+	list_for_each(pos, head) {
+		u32 d;
+
+		modelist = list_entry(pos, struct fb_modelist, list);
+		cmode = &modelist->mode;
+
+		if (!(mode->vmode & FB_VMODE_3D_MASK) &&
+		     (cmode->vmode & FB_VMODE_3D_MASK))
+			continue;
+		if ((mode->vmode & FB_VMODE_3D_MASK) &&
+		   ((mode->vmode & FB_VMODE_3D_MASK) != (cmode->vmode & FB_VMODE_3D_MASK)))
+			continue;
+
+		d = abs(cmode->xres - mode->xres) +
+			abs(cmode->yres - mode->yres);
+		if (diff > d) {
+			diff = d;
+			diff_refresh = abs(cmode->refresh - mode->refresh);
+			best = cmode;
+		} else if (diff == d) {
+			d = abs(cmode->refresh - mode->refresh);
+			if (diff_refresh > d) {
+				diff_refresh = d;
+				best = cmode;
+			}
+		}
+
+	}
+
+	return best;
+}
+EXPORT_SYMBOL(mxc_fb_find_nearest_mode);

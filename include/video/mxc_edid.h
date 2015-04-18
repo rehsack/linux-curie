@@ -84,6 +84,9 @@ struct mxc_edid_cfg {
 	struct mxc_hdmi_3d_format hdmi_3d_format[64];
 	u16 hdmi_3d_mask_all;
 	u16 hdmi_3d_struct_all;
+	unsigned char hdmi_3d_present;
+	unsigned char hdmi_3d_len;
+	unsigned char hdmi_3d_multi_present;
 	u32 vsd_max_tmdsclk_rate;
 
 	u8 max_channels;
@@ -93,9 +96,11 @@ struct mxc_edid_cfg {
 };
 
 int mxc_edid_var_to_vic(struct fb_var_screeninfo *var);
-int mxc_edid_mode_to_vic(const struct fb_videomode *mode);
+int mxc_edid_mode_to_vic(const struct fb_videomode *mode, u32 mode_mask);
 int mxc_edid_read(struct i2c_adapter *adp, unsigned short addr,
 	unsigned char *edid, struct mxc_edid_cfg *cfg, struct fb_info *fbi);
 int mxc_edid_parse_ext_blk(unsigned char *edid, struct mxc_edid_cfg *cfg,
 	struct fb_monspecs *specs);
+const struct fb_videomode *mxc_fb_find_nearest_mode(const struct fb_videomode *mode,
+	struct list_head *head);
 #endif

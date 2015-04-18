@@ -142,6 +142,7 @@ struct hdmi_data_info {
 	unsigned int hdcp_enable;
 	unsigned int rgb_out_enable;
 	unsigned int rgb_quant_range;
+	unsigned int enable_3d;
 	struct hdmi_vmode video_mode;
 };
 
@@ -218,6 +219,10 @@ static void mxc_hdmi_set_mode(struct mxc_hdmi *hdmi);
 static char *rgb_quant_range = "default";
 module_param(rgb_quant_range, charp, S_IRUGO);
 MODULE_PARM_DESC(rgb_quant_range, "RGB Quant Range (default, limited, full)");
+
+static char *enable_3d = "1";
+module_param(enable_3d, charp, S_IRUGO);
+MODULE_PARM_DESC(enable_3d, "3D modes enabled (0/1)");
 
 static struct platform_device_id imx_hdmi_devtype[] = {
 	{
@@ -386,6 +391,48 @@ out:
 static DEVICE_ATTR(rgb_quant_range, S_IRUGO | S_IWUSR,
 				mxc_hdmi_show_rgb_quant_range,
 				mxc_hdmi_store_rgb_quant_range);
+
+static ssize_t mxc_hdmi_show_enable_3d(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mxc_hdmi *hdmi = dev_get_drvdata(dev);
+
+	switch (hdmi->hdmi_data.enable_3d) {
+	case 0:
+		strcpy(buf, "disabled\n");
+		break;
+	default:
+		strcpy(buf, "enabled\n");
+		break;
+	};
+
+	return strlen(buf);
+}
+
+static ssize_t mxc_hdmi_store_enable_3d(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct mxc_hdmi *hdmi = dev_get_drvdata(dev);
+	int ret = count;
+
+	if (sysfs_streq("disable", buf)) {
+		hdmi->hdmi_data.enable_3d = 0;
+	} else if (sysfs_streq("0", buf)) {
+		hdmi->hdmi_data.enable_3d = 0;
+	} else {
+		hdmi->hdmi_data.enable_3d = 1;
+	}
+
+	mxc_hdmi_edid_rebuild_modelist(hdmi);
+	if (hdmi->cable_plugin)
+		mxc_hdmi_set_mode(hdmi);
+
+	return ret;
+}
+
+static DEVICE_ATTR(enable_3d, S_IRUGO | S_IWUSR,
+				mxc_hdmi_show_enable_3d,
+				mxc_hdmi_store_enable_3d);
 
 static ssize_t mxc_hdmi_show_hdcp_enable(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -1872,10 +1919,20 @@ static void mxc_hdmi_notify_fb(struct mxc_hdmi *hdmi)
 	dev_dbg(&hdmi->pdev->dev, "%s exit\n", __func__);
 }
 
+static void mxc_fb_add_videomode(const struct fb_videomode *src_mode, struct list_head *modelist, u32 new_flag, u32 mod_vmode)
+{
+	struct fb_videomode mode;
+
+	memcpy(&mode, src_mode, sizeof(struct fb_videomode));
+	mode.flag = new_flag; mode.vmode |= mod_vmode;
+	fb_add_videomode(&mode, modelist);
+}
+
 static void mxc_hdmi_edid_rebuild_modelist(struct mxc_hdmi *hdmi)
 {
-	int i;
+	int i, j, nvic = 0, vic;
 	struct fb_videomode *mode;
+	const struct fb_videomode *edid_mode;
 
 	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
 
@@ -1912,7 +1969,7 @@ static void mxc_hdmi_edid_rebuild_modelist(struct mxc_hdmi *hdmi)
 				mode->vmode |= FB_VMODE_ASPECT_16_9;
 		}
 
-		dev_dbg(&hdmi->pdev->dev, "Added mode %d:", i);
+		dev_dbg(&hdmi->pdev->dev, "Added mode: %d, vic: %d", i, vic);
 		dev_dbg(&hdmi->pdev->dev,
 			"xres = %d, yres = %d, ratio = %s, freq = %d, vmode = %d, flag = %d\n",
 			hdmi->fbi->monspecs.modedb[i].xres,
@@ -1927,6 +1984,56 @@ static void mxc_hdmi_edid_rebuild_modelist(struct mxc_hdmi *hdmi)
 			hdmi->fbi->monspecs.modedb[i].flag);
 
 		fb_add_videomode(mode, &hdmi->fbi->modelist);
+		if (!hdmi->hdmi_data.enable_3d || !vic)
+			continue;
+
+		/* according to HDMI 1.4 specs */
+		if (mode->refresh == 60 && hdmi->edid_cfg.hdmi_3d_present) {
+			// 1280x720p @ 59.94 / 60Hz TOP-and-BOTTOM
+			mxc_fb_add_videomode(&mxc_cea_mode[4], &hdmi->fbi->modelist, FB_MODE_IS_3D, FB_VMODE_3D_TOP_BOTTOM);
+			// 1920x1080p @ 23.98 / 24Hz TOP-and-BOTTOM
+			mxc_fb_add_videomode(&mxc_cea_mode[32], &hdmi->fbi->modelist, FB_MODE_IS_3D, FB_VMODE_3D_TOP_BOTTOM);
+			// 1280x720p @ 59.94 / 60Hz FRAME-PACK
+			mxc_fb_add_videomode(&mxc_cea_mode[4], &hdmi->fbi->modelist, FB_MODE_IS_3D, FB_VMODE_3D_FRAME_PACK);
+			// 1920x1080p @ 23.98 / 24Hz FRAME-PACK
+			mxc_fb_add_videomode(&mxc_cea_mode[32], &hdmi->fbi->modelist, FB_MODE_IS_3D, FB_VMODE_3D_FRAME_PACK);
+			// 1920x1080i @ 59.94 / 60Hz SIDE-by-SIDE half
+			mxc_fb_add_videomode(&mxc_cea_mode[5], &hdmi->fbi->modelist, FB_MODE_IS_3D, FB_VMODE_3D_SBS_HALF);
+
+		} else if (mode->refresh == 50 && hdmi->edid_cfg.hdmi_3d_present) {
+			// 1280x720p @ 50Hz TOP-and-BOTTOM
+			mxc_fb_add_videomode(&mxc_cea_mode[19], &hdmi->fbi->modelist, FB_MODE_IS_3D, FB_VMODE_3D_TOP_BOTTOM);
+			// 1280x720p @ 50Hz FRAME-PACK
+			mxc_fb_add_videomode(&mxc_cea_mode[19], &hdmi->fbi->modelist, FB_MODE_IS_3D, FB_VMODE_3D_FRAME_PACK);
+			// 1920x1080i @ 50Hz SIDE-by-SIDE half
+			mxc_fb_add_videomode(&mxc_cea_mode[20], &hdmi->fbi->modelist, FB_MODE_IS_3D, FB_VMODE_3D_SBS_HALF);
+		}
+
+		if ((hdmi->edid_cfg.hdmi_3d_multi_present == 2 && hdmi->edid_cfg.hdmi_3d_mask_all & (1 << (nvic-1))) ||
+		    (hdmi->edid_cfg.hdmi_3d_multi_present == 1 && nvic <= 16)) {
+			if (hdmi->edid_cfg.hdmi_3d_struct_all & 0x1)
+				mxc_fb_add_videomode(mode, &hdmi->fbi->modelist, FB_MODE_IS_3D, FB_VMODE_3D_FRAME_PACK);
+			if (hdmi->edid_cfg.hdmi_3d_struct_all & 0x6)
+				mxc_fb_add_videomode(mode, &hdmi->fbi->modelist, FB_MODE_IS_3D, FB_VMODE_3D_SBS_FULL);
+			if (hdmi->edid_cfg.hdmi_3d_struct_all & 0x40)
+				mxc_fb_add_videomode(mode, &hdmi->fbi->modelist, FB_MODE_IS_3D, FB_VMODE_3D_TOP_BOTTOM);
+			if (hdmi->edid_cfg.hdmi_3d_struct_all & 0x100)
+				mxc_fb_add_videomode(mode, &hdmi->fbi->modelist, FB_MODE_IS_3D, FB_VMODE_3D_SBS_HALF);
+		}
+
+		for (j = 0; j < hdmi->edid_cfg.hdmi_3d_len; j++) {
+			if (hdmi->edid_cfg.hdmi_3d_format[j].vic_order_2d != nvic-1)
+				continue;
+
+			if (hdmi->edid_cfg.hdmi_3d_format[j].struct_3d == 0)
+				mxc_fb_add_videomode(mode, &hdmi->fbi->modelist, FB_MODE_IS_3D, FB_VMODE_3D_FRAME_PACK);
+			if (hdmi->edid_cfg.hdmi_3d_format[j].struct_3d == 3)
+				mxc_fb_add_videomode(mode, &hdmi->fbi->modelist, FB_MODE_IS_3D, FB_VMODE_3D_SBS_FULL);
+			if (hdmi->edid_cfg.hdmi_3d_format[j].struct_3d == 6)
+				mxc_fb_add_videomode(mode, &hdmi->fbi->modelist, FB_MODE_IS_3D, FB_VMODE_3D_TOP_BOTTOM);
+			if (hdmi->edid_cfg.hdmi_3d_format[j].struct_3d == 8)
+				mxc_fb_add_videomode(mode, &hdmi->fbi->modelist, FB_MODE_IS_3D, FB_VMODE_3D_SBS_HALF);
+		}
 	}
 
 	fb_new_modelist(hdmi->fbi);
@@ -1990,7 +2097,7 @@ static void mxc_hdmi_set_mode(struct mxc_hdmi *hdmi)
 	fb_var_to_videomode(&m, &var);
 	dump_fb_videomode(&m);
 
-	mode = fb_find_nearest_mode(&m, &hdmi->fbi->modelist);
+	mode = mxc_fb_find_nearest_mode(&m, &hdmi->fbi->modelist);
 	if (!mode) {
 		pr_err("%s: could not find mode in modelist\n", __func__);
 		return;
@@ -2273,12 +2380,11 @@ static void mxc_hdmi_setup(struct mxc_hdmi *hdmi, unsigned long event)
 		memcpy(&hdmi->previous_non_vga_mode, &hdmi->fbi->var,
 		       sizeof(struct fb_var_screeninfo));
 		if (!list_empty(&hdmi->fbi->modelist)) {
-			edid_mode = fb_find_nearest_mode(&m, &hdmi->fbi->modelist);
-			pr_debug("edid mode ");
+			edid_mode = mxc_fb_find_nearest_mode(&m, &hdmi->fbi->modelist);
 			dump_fb_videomode((struct fb_videomode *)edid_mode);
 			/* update fbi mode */
 			hdmi->fbi->mode = (struct fb_videomode *)edid_mode;
-			hdmi->vic = mxc_edid_mode_to_vic(edid_mode);
+			hdmi->vic = mxc_edid_mode_to_vic(edid_mode, 0);
 		}
 	}
 
@@ -2756,6 +2862,14 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 		hdmi->hdmi_data.rgb_quant_range = HDMI_FC_AVICONF2_RGB_QUANT_DEFAULT;
 	}
 
+	if (!strcasecmp(enable_3d, "disable")) {
+		hdmi->hdmi_data.enable_3d = 0;
+	} else if (!strcasecmp(enable_3d, "0")) {
+		hdmi->hdmi_data.enable_3d = 0;
+	} else {
+		hdmi->hdmi_data.enable_3d = 1;
+	}
+
 	ret = devm_request_irq(&hdmi->pdev->dev, irq, mxc_hdmi_hotplug, IRQF_SHARED,
 			dev_name(&hdmi->pdev->dev), hdmi);
 	if (ret < 0) {
@@ -2786,6 +2900,11 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 	if (ret < 0)
 		dev_warn(&hdmi->pdev->dev,
 			"cound not create sys node for rgb quant range\n");
+
+	ret = device_create_file(&hdmi->pdev->dev, &dev_attr_enable_3d);
+	if (ret < 0)
+		dev_warn(&hdmi->pdev->dev,
+			"cound not create sys node for enable_3d\n");
 
 	ret = device_create_file(&hdmi->pdev->dev, &dev_attr_hdcp_enable);
 	if (ret < 0)
