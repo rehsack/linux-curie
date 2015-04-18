@@ -2576,7 +2576,7 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 
 	/* Set the default mode and modelist when disp init. */
 	fb_find_mode(&hdmi->fbi->var, hdmi->fbi,
-		     hdmi->dft_mode_str, NULL, 0, NULL,
+		     hdmi->dft_mode_str, mxc_cea_mode, ARRAY_SIZE(mxc_cea_mode), NULL,
 		     hdmi->default_bpp);
 
 	console_lock();
