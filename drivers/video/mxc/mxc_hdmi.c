@@ -1839,7 +1839,7 @@ static void hdmi_disable_overflow_interrupts(void)
 	pr_debug("%s\n", __func__);
 	hdmi_writeb(HDMI_IH_MUTE_FC_STAT2_OVERFLOW_MASK,
 		    HDMI_IH_MUTE_FC_STAT2);
-	hdmi_writeb(0xff, HDMI_FC_MASK2);
+	hdmi_writeb(0x7f, HDMI_FC_MASK2);
 }
 
 static void mxc_hdmi_notify_fb(struct mxc_hdmi *hdmi)
@@ -2087,6 +2087,7 @@ static void hotplug_worker(struct work_struct *work)
 	unsigned long flags;
 	char event_string[32];
 	char *envp[] = { event_string, NULL };
+	u32 pa;
 
 	hdmi_phy_stat0 = hdmi_readb(HDMI_PHY_STAT0);
 	hdmi_phy_pol0 = hdmi_readb(HDMI_PHY_POL0);
@@ -2219,7 +2220,7 @@ static irqreturn_t mxc_hdmi_hotplug(int irq, void *data)
 		val = hdmi_readb(HDMI_A_APIINTSTAT);
 		if (val != 0) {
 			/* Mute interrupts until interrupt handled */
-			val = 0xFF;
+			val = 0x7F;
 			hdmi_writeb(val, HDMI_A_APIINTMSK);
 			schedule_delayed_work(&(hdmi->hdcp_hdp_work), msecs_to_jiffies(50));
 		}
