@@ -288,6 +288,10 @@
 	pu-supply = <&pu_dummy>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
 };
 
+&wdog2 {
+	status = "okay";
+};
+
 &gpu {
 	pu-supply = <&pu_dummy>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
 };
