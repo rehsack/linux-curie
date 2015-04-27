@@ -997,6 +997,25 @@ static void mxc_hdmi_phy_sel_interface_control(u8 enable)
 			HDMI_PHY_CONF0_SELDIPIF_MASK);
 }
 
+static int txterm = 0x0005;
+static int vlev = 0x01ad;
+
+#ifndef MODULE
+static int __init txterm_setup(char *str)
+{
+      txterm = simple_strtol(str, NULL, 0);
+      return 1;
+}
+__setup("txterm=", txterm_setup);
+
+static int __init vlev_setup(char *str)
+{
+      vlev = simple_strtol(str, NULL, 0);
+      return 1;
+}
+__setup("vlev=", vlev_setup);
+#endif
+
 static int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 			      unsigned char cRes, int cscOn)
 {
@@ -1207,11 +1226,11 @@ static int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 	hdmi_phy_i2c_write(hdmi, 0x0000, 0x13);  /* PLLPHBYCTRL */
 	hdmi_phy_i2c_write(hdmi, 0x0006, 0x17);
 	/* RESISTANCE TERM 133Ohm Cfg */
-	hdmi_phy_i2c_write(hdmi, 0x0005, 0x19);  /* TXTERM */
+	hdmi_phy_i2c_write(hdmi, txterm, 0x19);  /* TXTERM */
 	/* PREEMP Cgf 0.00 */
 	hdmi_phy_i2c_write(hdmi, 0x800d, 0x09);  /* CKSYMTXCTRL */
 	/* TX/CK LVL 10 */
-	hdmi_phy_i2c_write(hdmi, 0x01ad, 0x0E);  /* VLEVCTRL */
+	hdmi_phy_i2c_write(hdmi, vlev, 0x0E);  /* VLEVCTRL */
 
 	/* Board specific setting for PHY register 0x09, 0x0e to pass HCT */
 	if (hdmi->phy_config.reg_cksymtx != 0)
