@@ -33,6 +33,7 @@
 #include "hardware.h"
 
 static void __iomem *wdog_base;
+static void __iomem *wdog2_base;
 static struct clk *wdog_clk;
 static u32 wdog_source = 1; /* use WDOG1 default */
 
@@ -56,7 +57,11 @@ void mxc_restart(char mode, const char *cmd)
 	 */
 	else if (wdog_source == 2 && (cpu_is_imx6q() || cpu_is_imx6dl() ||
 			cpu_is_imx6sl()))
+	{
 		wcr_enable = 0x14;
+		__raw_writew(wcr_enable, wdog2_base);
+		__raw_writew(wcr_enable, wdog2_base);
+	}
 	else
 		wcr_enable = (1 << 2);
 
@@ -112,8 +117,8 @@ void __init mxc_arch_reset_init_dt(void)
 	if (wdog_source == 2 && (cpu_is_imx6q() || cpu_is_imx6dl() ||
 		cpu_is_imx6sl())) {
 		np = of_find_compatible_node(np, NULL, "fsl,imx21-wdt");
-		wdog_base = of_iomap(np, 0);
-		WARN_ON(!wdog_base);
+		wdog2_base = of_iomap(np, 0);
+		WARN_ON(!wdog2_base);
 	}
 
 	wdog_clk = of_clk_get(np, 0);
