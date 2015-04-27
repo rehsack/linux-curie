@@ -3049,6 +3049,7 @@ bool ipu_ch_param_bad_alpha_pos(uint32_t pixel_fmt)
 EXPORT_SYMBOL(ipu_ch_param_bad_alpha_pos);
 
 #ifdef CONFIG_PM
+#ifdef CONFIG_PM_SLEEP
 static int ipu_suspend(struct device *dev)
 {
 	struct ipu_soc *ipu = dev_get_drvdata(dev);
@@ -3077,6 +3078,7 @@ static int ipu_resume(struct device *dev)
 	dev_dbg(dev, "ipu resume.\n");
 	return 0;
 }
+#endif
 
 int ipu_runtime_suspend(struct device *dev)
 {
