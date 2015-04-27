@@ -539,6 +539,7 @@ static int mxs_phy_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
 static int mxs_phy_system_suspend(struct device *dev)
 {
 	struct mxs_phy *mxs_phy = dev_get_drvdata(dev);
@@ -558,6 +559,7 @@ static int mxs_phy_system_resume(struct device *dev)
 
 	return 0;
 }
+#endif
 
 SIMPLE_DEV_PM_OPS(mxs_phy_pm, mxs_phy_system_suspend, mxs_phy_system_resume);
 
