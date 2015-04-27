@@ -1351,6 +1351,7 @@ static int gpu_runtime_resume(struct device *dev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
 static int gpu_system_suspend(struct device *dev)
 {
 	pm_message_t state={0};
@@ -1361,6 +1362,7 @@ static int gpu_system_resume(struct device *dev)
 {
 	return gpu_resume(to_platform_device(dev));
 }
+#endif
 
 static const struct dev_pm_ops gpu_pm_ops = {
 	SET_RUNTIME_PM_OPS(gpu_runtime_suspend, gpu_runtime_resume, NULL)
