@@ -2208,7 +2208,10 @@ static irqreturn_t mxc_hdmi_hotplug(int irq, void *data)
 		hdmi_writeb(hdmi->plug_event, HDMI_IH_PHY_STAT0);
 
 		if(hdmi_inited) {
-			mod_timer(&hdmi->jitter_timer, jiffies + HZ);
+			if (!hdmi->dft_mode_set)
+				mod_timer(&hdmi->jitter_timer, jiffies + msecs_to_jiffies(20));
+			else
+				mod_timer(&hdmi->jitter_timer, jiffies + HZ);
 		}
 	}
 
