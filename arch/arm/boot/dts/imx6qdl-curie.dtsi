@@ -1,0 +1,36 @@
+/*
+ * Copyright 2015 Shanghai Zhixing Information Technology Co.,Ltd.
+ */
+
+/ {
+	memory {
+		reg = <0x10000000 0x40000000>;
+	};
+};
+
+&iomuxc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_hog>;
+
+	imx6qdl-curie {
+		pinctrl_hog: hoggrp {
+			fsl,pins = <
+			>;
+		};
+
+		pinctrl_uart1: uart1grp {
+			fsl,pins = <
+				MX6QDL_PAD_CSI0_DAT10__UART1_TX_DATA	0x1b0b1
+				MX6QDL_PAD_CSI0_DAT11__UART1_RX_DATA	0x1b0b1
+			>;
+		};
+
+	};
+};
+
+&uart1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart1>;
+	status = "okay";
+};
+
