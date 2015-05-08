@@ -13,6 +13,13 @@
 		reset-delay-us = <100>;
 		#reset-cells = <0>;
 	};
+
+	wifi-cs {
+		compatible = "gpio-reset";
+		reset-gpios = <&gpio2 4 GPIO_ACTIVE_HIGH>;
+		reset-delay-us = <1000>;
+		#reset-cells = <0>;
+	};
 };
 
 &iomuxc {
@@ -25,6 +32,7 @@
 				MX6QDL_PAD_ENET_CRS_DV__GPIO1_IO25 0x80000000
 				MX6QDL_PAD_NANDF_CS2__GPIO6_IO15   0x80000000
 				MX6QDL_PAD_NANDF_ALE__GPIO6_IO08   0x80000000
+				MX6QDL_PAD_NANDF_D4__GPIO2_IO04    0x80000000
 			>;
 		};
 
