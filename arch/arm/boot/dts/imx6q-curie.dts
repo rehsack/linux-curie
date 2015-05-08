@@ -1,0 +1,13 @@
+/*
+ * Copyright 2015 Shanghai Zhixing Information Technology Co.,Ltd.
+ */
+
+/dts-v1/;
+
+#include "imx6q.dtsi"
+#include "imx6qdl-curie.dtsi"
+
+/ {
+	model = "WindSolve i.MX6 Quad Curie Board";
+	compatible = "ws,imx6q-curie", "fsl,imx6q";
+};
