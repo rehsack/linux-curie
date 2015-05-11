@@ -3,6 +3,10 @@
  */
 
 / {
+	aliases {
+		mxcfb0 = &mxcfb1;
+	};
+
 	memory {
 		reg = <0x10000000 0x40000000>;
 	};
@@ -19,6 +23,29 @@
 		reset-gpios = <&gpio2 4 GPIO_ACTIVE_HIGH>;
 		reset-delay-us = <1000>;
 		#reset-cells = <0>;
+	};
+
+	sound-hdmi {
+		compatible = "fsl,imx6q-audio-hdmi",
+			     "fsl,imx-audio-hdmi";
+		model = "imx-audio-hdmi";
+		hdmi-controller = <&hdmi_audio>;
+	};
+
+	mxcfb1: fb@0 {
+		compatible = "fsl,mxc_sdc_fb";
+		disp_dev = "hdmi";
+		interface_pix_fmt = "RGB24";
+		mode_str = "1920x1080M@60";
+		default_bpp = <32>;
+		int_clk = <0>;
+		late_init = <0>;
+		status = "okay";
+	};
+
+	v4l2_out {
+		compatible = "fsl,mxc_v4l2_output";
+		status = "okay";
 	};
 };
 
@@ -122,6 +149,12 @@
 				MX6QDL_PAD_SD4_DAT5__SD4_DATA5		0x17059
 				MX6QDL_PAD_SD4_DAT6__SD4_DATA6		0x17059
 				MX6QDL_PAD_SD4_DAT7__SD4_DATA7		0x17059
+			>;
+		};
+
+		pinctrl_hdmi_cec: hdmicecgrp {
+			fsl,pins = <
+				MX6QDL_PAD_EIM_A25__HDMI_TX_CEC_LINE 0x1f8b0
 			>;
 		};
 
@@ -321,5 +354,27 @@
 	non-removable;
 	no-1-8-v;
 	keep-power-in-suspend;
+	status = "okay";
+};
+
+&hdmi_audio {
+	status = "okay";
+};
+
+&hdmi_cec {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_hdmi_cec>;
+	status = "okay";
+};
+
+&hdmi_core {
+	ipu_id = <0>;
+	disp_id = <0>;
+	status = "okay";
+};
+
+&hdmi_video {
+	fsl,phy_reg_vlev = <0x0294>;
+	fsl,phy_reg_cksymtx = <0x800d>;
 	status = "okay";
 };
