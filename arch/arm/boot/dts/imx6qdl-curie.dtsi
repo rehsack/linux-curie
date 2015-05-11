@@ -372,22 +372,22 @@
 };
 
 &cpu0 {
-	arm-supply = <&sw1a_reg>;
-	soc-supply = <&sw1c_reg>;
+	arm-supply = <&reg_arm>; /* ldo_bypass:sw1a_reg; ldo_enabled:reg_arm */
+	soc-supply = <&reg_soc>; /* ldo_bypass:sw1c_reg; ldo_enabled:reg_soc */
 };
 
 &gpc {
 	/* use ldo-bypass, u-boot will check it and configure */
-	fsl,ldo-bypass = <1>;
-	fsl,wdog-reset = <2>;
+	fsl,ldo-bypass = <0>;
+	fsl,wdog-reset = <1>;
 };
 
 &wdog1 {
-	status = "disabled";
+	status = "okay";
 };
 
 &wdog2 {
-	status = "okay";
+	status = "disabled";
 };
 
 &usdhc2 {
