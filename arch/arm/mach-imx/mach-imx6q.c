@@ -444,6 +444,20 @@ static const struct of_dev_auxdata imx6q_auxdata_lookup[] __initconst = {
 	{ /* sentinel */ }
 };
 
+static void curie_pm_power_off(void)
+{
+	/* do nothing */
+}
+
+static void pm_power_off_init(void)
+{
+	if(of_machine_is_compatible("ws,imx6q-curie")
+	|| of_machine_is_compatible("ws,imx6dl-curie"))
+	{
+		pm_power_off = curie_pm_power_off;
+	}
+}
+
 static void __init imx6q_init_machine(void)
 {
 	struct device *parent;
@@ -464,6 +478,7 @@ static void __init imx6q_init_machine(void)
 	imx_anatop_init();
 	imx6q_csi_mux_init();
 	cpu_is_imx6q() ?  imx6q_pm_init() : imx6dl_pm_init();
+	pm_power_off_init();
 }
 
 #define OCOTP_CFG3			0x440
