@@ -212,6 +212,7 @@ int mxc_edid_fb_mode_is_equal(bool use_aspect,
 		abs(mode1->refresh - mode2->refresh) <= 1 &&
 		(mode1->vmode & mask) == (mode2->vmode & mask));
 }
+EXPORT_SYMBOL(mxc_edid_fb_mode_is_equal);
 
 static void get_detailed_timing(unsigned char *block,
 				struct fb_videomode *mode)
@@ -759,4 +760,3 @@ int mxc_edid_read(struct i2c_adapter *adp, unsigned short addr,
 	return 0;
 }
 EXPORT_SYMBOL(mxc_edid_read);
-

@@ -81,6 +81,8 @@
 #define YCBCR422_8BITS		3
 #define XVYCC444            4
 
+#define fb_mode_is_equal(a, b)	mxc_edid_fb_mode_is_equal(true, a, b, ~0)
+
 /*
  * We follow a flowchart which is in the "Synopsys DesignWare Courses
  * HDMI Transmitter Controller User Guide, 1.30a", section 3.1
@@ -208,6 +210,10 @@ extern void mxc_hdmi_cec_handle(u32 cec_stat);
 static void mxc_hdmi_setup(struct mxc_hdmi *hdmi, unsigned long event);
 static void hdmi_enable_overflow_interrupts(void);
 static void hdmi_disable_overflow_interrupts(void);
+static void mxc_hdmi_edid_rebuild_modelist(struct mxc_hdmi *hdmi);
+static void mxc_hdmi_default_edid_cfg(struct mxc_hdmi *hdmi);
+static void mxc_hdmi_default_modelist(struct mxc_hdmi *hdmi);
+static void mxc_hdmi_set_mode(struct mxc_hdmi *hdmi);
 
 static char *rgb_quant_range = "default";
 module_param(rgb_quant_range, charp, S_IRUGO);
@@ -240,8 +246,8 @@ static inline int cpu_is_imx6dl(struct mxc_hdmi *hdmi)
 #ifdef DEBUG
 static void dump_fb_videomode(struct fb_videomode *m)
 {
-	pr_debug("fb_videomode = %d %d %d %d %d %d %d %d %d %d %d %d %d\n",
-		m->refresh, m->xres, m->yres, m->pixclock, m->left_margin,
+	pr_debug("fb_videomode = %ux%u@%uHz (%ukHz) %u %u %u %u %u %u %u %u %u\n",
+		m->xres, m->yres, m->refresh, m->pixclock, m->left_margin,
 		m->right_margin, m->upper_margin, m->lower_margin,
 		m->hsync_len, m->vsync_len, m->sync, m->vmode, m->flag);
 }
@@ -1886,16 +1892,36 @@ static void mxc_hdmi_edid_rebuild_modelist(struct mxc_hdmi *hdmi)
 		 */
 		mode = &hdmi->fbi->monspecs.modedb[i];
 
-		if ((mode->vmode & FB_VMODE_INTERLACED) ||
-		    (hdmi->edid_cfg.hdmi_cap &&
-		    (mxc_edid_mode_to_vic(mode) == 0)))
-			continue;
+		if ((vic = mxc_edid_mode_to_vic(mode, 0)))
+			nvic++;
+
+		// allow detailed timing specification with vic=0 for HDMI
+		// mode
+		if (hdmi->edid_cfg.hdmi_cap &&
+		   ((mode->flag != FB_MODE_IS_DETAILED) && (vic == 0)
+				||
+		   (mode->flag == FB_MODE_IS_VESA)
+				||
+		   (mode->vmode & FB_VMODE_INTERLACED)))
+				continue;
+
+		if (!(mode->vmode & FB_VMODE_ASPECT_MASK)) {
+			if (mode->yres == (mode->xres * 3)/4)
+				mode->vmode |= FB_VMODE_ASPECT_4_3;
+			else
+				mode->vmode |= FB_VMODE_ASPECT_16_9;
+		}
 
 		dev_dbg(&hdmi->pdev->dev, "Added mode %d:", i);
 		dev_dbg(&hdmi->pdev->dev,
-			"xres = %d, yres = %d, freq = %d, vmode = %d, flag = %d\n",
+			"xres = %d, yres = %d, ratio = %s, freq = %d, vmode = %d, flag = %d\n",
 			hdmi->fbi->monspecs.modedb[i].xres,
 			hdmi->fbi->monspecs.modedb[i].yres,
+			mode->vmode & FB_VMODE_ASPECT_1 ? "1" :
+			    mode->vmode & FB_VMODE_ASPECT_4_3 ? "4/3" :
+			    mode->vmode & FB_VMODE_ASPECT_5_4 ? "5/4" :
+			    mode->vmode & FB_VMODE_ASPECT_16_10 ? "16/10" :
+			    mode->vmode & FB_VMODE_ASPECT_16_9 ? "16/9" : "n/a",
 			hdmi->fbi->monspecs.modedb[i].refresh,
 			hdmi->fbi->monspecs.modedb[i].vmode,
 			hdmi->fbi->monspecs.modedb[i].flag);
@@ -1930,15 +1956,15 @@ static void  mxc_hdmi_default_modelist(struct mxc_hdmi *hdmi)
 
 	fb_destroy_modelist(&hdmi->fbi->modelist);
 
+	fb_var_to_videomode(&m, &hdmi->fbi->var);
+	fb_add_videomode(&m, &hdmi->fbi->modelist);
+
 	/*Add all no interlaced CEA mode to default modelist */
 	for (i = 0; i < ARRAY_SIZE(mxc_cea_mode); i++) {
 		mode = &mxc_cea_mode[i];
 		if (!(mode->vmode & FB_VMODE_INTERLACED) && (mode->xres != 0))
 			fb_add_videomode(mode, &hdmi->fbi->modelist);
 	}
-
-	fb_var_to_videomode(&m, &hdmi->fbi->var);
-	fb_add_videomode(&m, &hdmi->fbi->modelist);
 
 	fb_new_modelist(hdmi->fbi);
 
