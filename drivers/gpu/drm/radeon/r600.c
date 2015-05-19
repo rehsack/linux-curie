@@ -3647,6 +3647,9 @@ int r600_irq_set(struct radeon_device *rdev)
 		WREG32(RV770_CG_THERMAL_INT, thermal_int);
 	}
 
+	/* posting read */
+	RREG32(R_000E50_SRBM_STATUS);
+
 	return 0;
 }
 
@@ -3795,6 +3798,7 @@ static u32 r600_get_ih_wptr(struct radeon_device *rdev)
 		tmp = RREG32(IH_RB_CNTL);
 		tmp |= IH_WPTR_OVERFLOW_CLEAR;
 		WREG32(IH_RB_CNTL, tmp);
+		wptr &= ~RB_OVERFLOW;
 	}
 	return (wptr & rdev->ih.ptr_mask);
 }
