@@ -10,6 +10,10 @@
  */
 
 / {
+	system-rev = <0x00000000>;
+	system-serial-high = <0x00000000>;
+	system-serial-low = <0x00000000>;
+
 	aliases {
 		mxcfb0 = &mxcfb1;
 	};
