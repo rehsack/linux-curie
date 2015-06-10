@@ -25,6 +25,7 @@
 #include <asm/smp_plat.h>
 #include <asm/mach/arch.h>
 #include <asm/mach-types.h>
+#include <asm/system_info.h>
 
 void __init early_init_dt_add_memory_arch(u64 base, u64 size)
 {
@@ -183,6 +184,7 @@ struct machine_desc * __init setup_machine_fdt(unsigned int dt_phys)
 	unsigned int score, mdesc_score = ~1;
 	unsigned long dt_root;
 	const char *model;
+	__be32 *prop_u32;
 
 #ifdef CONFIG_ARCH_MULTIPLATFORM
 	DT_MACHINE_START(GENERIC_DT, "Generic DT based system")
@@ -241,6 +243,19 @@ struct machine_desc * __init setup_machine_fdt(unsigned int dt_phys)
 	of_scan_flat_dt(early_init_dt_scan_root, NULL);
 	/* Setup memory, calling early_init_dt_add_memory_arch */
 	of_scan_flat_dt(early_init_dt_scan_memory, NULL);
+
+	/* system rev */
+	prop_u32 = of_get_flat_dt_prop(dt_root, "system-rev", NULL);
+	if(prop_u32 != NULL)
+		system_rev = be32_to_cpup(prop_u32);
+	/* system serial high */
+	prop_u32 = of_get_flat_dt_prop(dt_root, "system-serial-high", NULL);
+	if(prop_u32 != NULL)
+		system_serial_high = be32_to_cpup(prop_u32);
+	/* system serial low */
+	prop_u32 = of_get_flat_dt_prop(dt_root, "system-serial-low", NULL);
+	if(prop_u32 != NULL)
+		system_serial_low = be32_to_cpup(prop_u32);
 
 	/* Change machine number to match the mdesc we're using */
 	__machine_arch_type = mdesc_best->nr;
