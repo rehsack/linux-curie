@@ -26,6 +26,7 @@
 #include <asm/smp_plat.h>
 #include <asm/mach/arch.h>
 #include <asm/mach-types.h>
+#include <asm/system_info.h>
 
 
 #ifdef CONFIG_SMP
@@ -204,6 +205,8 @@ static const void * __init arch_get_next_mach(const char *const **match)
 const struct machine_desc * __init setup_machine_fdt(unsigned int dt_phys)
 {
 	const struct machine_desc *mdesc, *mdesc_best = NULL;
+	unsigned long dt_root;
+	__be32 *prop_u32;
 
 #ifdef CONFIG_ARCH_MULTIPLATFORM
 	DT_MACHINE_START(GENERIC_DT, "Generic DT based system")
@@ -215,12 +218,13 @@ const struct machine_desc * __init setup_machine_fdt(unsigned int dt_phys)
 	if (!dt_phys || !early_init_dt_verify(phys_to_virt(dt_phys)))
 		return NULL;
 
+	dt_root = of_get_flat_dt_root();
+
 	mdesc = of_flat_dt_match_machine(mdesc_best, arch_get_next_mach);
 
 	if (!mdesc) {
 		const char *prop;
 		int size;
-		unsigned long dt_root;
 
 		early_print("\nError: unrecognized/unsupported "
 			    "device tree compatible list:\n[ ");
@@ -242,6 +246,19 @@ const struct machine_desc * __init setup_machine_fdt(unsigned int dt_phys)
 		mdesc->dt_fixup();
 
 	early_init_dt_scan_nodes();
+
+	/* system rev */
+	prop_u32 = of_get_flat_dt_prop(dt_root, "system-rev", NULL);
+	if(prop_u32 != NULL)
+		system_rev = be32_to_cpup(prop_u32);
+	/* system serial high */
+	prop_u32 = of_get_flat_dt_prop(dt_root, "system-serial-high", NULL);
+	if(prop_u32 != NULL)
+		system_serial_high = be32_to_cpup(prop_u32);
+	/* system serial low */
+	prop_u32 = of_get_flat_dt_prop(dt_root, "system-serial-low", NULL);
+	if(prop_u32 != NULL)
+		system_serial_low = be32_to_cpup(prop_u32);
 
 	/* Change machine number to match the mdesc we're using */
 	__machine_arch_type = mdesc->nr;
