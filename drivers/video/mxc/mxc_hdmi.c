@@ -2089,13 +2089,12 @@ static void hotplug_worker(struct work_struct *work)
 	hdmi_phy_stat0 = hdmi_readb(HDMI_PHY_STAT0);
 	hdmi_phy_pol0 = hdmi_readb(HDMI_PHY_POL0);
 
-	if (hdmi->latest_intr_stat & hdmi->plug_event) {
 		/* Make HPD intr active low to capture unplug event or
 		 * active high to capture plugin event */
 		hdmi_writeb((hdmi->plug_mask & ~hdmi_phy_pol0), HDMI_PHY_POL0);
 
-		/* check cable status */
-		if (hdmi_phy_stat0 & hdmi->plug_mask) {
+		/* cable connection changes */
+		if (hdmi_phy_pol0 & hdmi->plug_mask) {
 			/* Plugin event */
 			dev_dbg(&hdmi->pdev->dev, "EVENT=plugin\n");
 			mxc_hdmi_cable_connected(hdmi);
@@ -2120,7 +2119,6 @@ static void hotplug_worker(struct work_struct *work)
 			mxc_hdmi_cec_handle(0);
 #endif
 		}
-	}
 
 	/* Lock here to ensure full powerdown sequence
 	 * completed before next interrupt processed */
