@@ -309,6 +309,7 @@
 	no-1-8-v;
 	keep-power-in-suspend;
 	enable-sdio-wakeup;
+	max-frequency = <25000000>;
 	status = "okay";
 };
 
@@ -321,6 +322,7 @@
 	no-1-8-v;
 	keep-power-in-suspend;
 	enable-sdio-wakeup;
+	max-frequency = <50000000>;
 	status = "okay";
 };
 
@@ -331,6 +333,7 @@
 	non-removable;
 	no-1-8-v;
 	keep-power-in-suspend;
+	max-frequency = <39000000>;
 	status = "okay";
 };
 
