@@ -982,6 +982,10 @@ sdhci_esdhc_imx_probe_dt(struct platform_device *pdev,
 	if (of_find_property(np, "enable-sdio-wakeup", NULL))
 		host->mmc->pm_caps |= MMC_PM_WAKE_SDIO_IRQ;
 
+	host->max_clk_dt = 0;
+	/* max_clk_dt is obtained from the optional "max-frequency" property */
+	of_property_read_u32(np, "max-frequency", &host->max_clk_dt);
+
 	return 0;
 }
 #else
