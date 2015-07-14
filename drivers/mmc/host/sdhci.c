@@ -2929,6 +2929,8 @@ int sdhci_add_host(struct sdhci_host *host)
 	 */
 	mmc->ops = &sdhci_ops;
 	mmc->f_max = host->max_clk;
+	if (host->max_clk_dt && mmc->f_max > host->max_clk_dt)
+		mmc->f_max = host->max_clk_dt;
 	if (host->ops->get_min_clock)
 		mmc->f_min = host->ops->get_min_clock(host);
 	else if (host->version >= SDHCI_SPEC_300) {
