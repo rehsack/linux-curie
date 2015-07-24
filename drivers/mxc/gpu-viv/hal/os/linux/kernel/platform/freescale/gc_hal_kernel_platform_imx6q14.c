@@ -24,6 +24,7 @@
 #include "gc_hal_kernel_device.h"
 #include "gc_hal_driver.h"
 #include <linux/slab.h>
+#include <linux/reset.h>
 
 #if USE_PLATFORM_DRIVER
 #   include <linux/platform_device.h>
