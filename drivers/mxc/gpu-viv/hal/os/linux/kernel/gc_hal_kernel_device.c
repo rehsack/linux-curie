@@ -2046,7 +2046,7 @@ gckGALDEVICE_Setup_ISR(
 #else
 #if gcdMULTI_GPU
     ret = request_irq(
-        Device->irqLine3D[gcvCORE_3D_0_ID], isrRoutine3D0, IRQF_DISABLED,
+        Device->irqLine3D[gcvCORE_3D_0_ID], isrRoutine3D0, 0,
         "galcore_3d_0", Device
         );
 
@@ -2067,7 +2067,7 @@ gckGALDEVICE_Setup_ISR(
 
 #if gcdMULTI_GPU > 1
     ret = request_irq(
-        Device->irqLine3D[gcvCORE_3D_1_ID], isrRoutine3D1, IRQF_DISABLED,
+        Device->irqLine3D[gcvCORE_3D_1_ID], isrRoutine3D1, 0,
         "galcore_3d_1", Device
         );
 
@@ -2088,7 +2088,7 @@ gckGALDEVICE_Setup_ISR(
 #endif
 #elif gcdMULTI_GPU_AFFINITY
     ret = request_irq(
-        Device->irqLines[gcvCORE_MAJOR], isrRoutine3D0, IRQF_DISABLED,
+        Device->irqLines[gcvCORE_MAJOR], isrRoutine3D0, 0,
         "galcore_3d_0", Device
         );
 
@@ -2108,7 +2108,7 @@ gckGALDEVICE_Setup_ISR(
     Device->isrInitializeds[gcvCORE_MAJOR] = gcvTRUE;
 
     ret = request_irq(
-        Device->irqLines[gcvCORE_OCL], isrRoutine3D1, IRQF_DISABLED,
+        Device->irqLines[gcvCORE_OCL], isrRoutine3D1, 0,
         "galcore_3d_1", Device
         );
 
@@ -2128,7 +2128,7 @@ gckGALDEVICE_Setup_ISR(
     Device->isrInitializeds[gcvCORE_OCL] = gcvTRUE;
 #else
     ret = request_irq(
-        Device->irqLines[gcvCORE_MAJOR], isrRoutine, IRQF_DISABLED,
+        Device->irqLines[gcvCORE_MAJOR], isrRoutine, 0,
         "galcore interrupt service", Device
         );
 
@@ -2187,7 +2187,7 @@ gckGALDEVICE_Setup_ISR_2D(
         );
 #else
     ret = request_irq(
-        Device->irqLines[gcvCORE_2D], isrRoutine2D, IRQF_DISABLED,
+        Device->irqLines[gcvCORE_2D], isrRoutine2D, 0,
         "galcore interrupt service for 2D", Device
         );
 #endif
@@ -2245,7 +2245,7 @@ gckGALDEVICE_Setup_ISR_VG(
         );
 #else
     ret = request_irq(
-        Device->irqLines[gcvCORE_VG], isrRoutineVG, IRQF_DISABLED,
+        Device->irqLines[gcvCORE_VG], isrRoutineVG, 0,
         "galcore interrupt service for 2D", Device
         );
 #endif
