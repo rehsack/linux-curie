@@ -1,7 +1,0 @@
-# drivers/mxc/Kconfig
-
-if ARCH_MXC
-
-source "drivers/mxc/gpu-viv/Kconfig"
-
-endif
