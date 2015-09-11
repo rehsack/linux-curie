@@ -206,7 +206,7 @@ const struct machine_desc * __init setup_machine_fdt(unsigned int dt_phys)
 {
 	const struct machine_desc *mdesc, *mdesc_best = NULL;
 	unsigned long dt_root;
-	__be32 *prop_u32;
+	const __be32 *prop_u32;
 
 #ifdef CONFIG_ARCH_MULTIPLATFORM
 	DT_MACHINE_START(GENERIC_DT, "Generic DT based system")
