@@ -18,7 +18,6 @@
  *
  * @ingroup IPU
  */
-#include <linux/busfreq-imx.h>
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/delay.h>
@@ -33,7 +32,6 @@
 #include <linux/mod_devicetable.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
-#include <linux/pm_runtime.h>
 #include <linux/reset.h>
 #include <linux/spinlock.h>
 #include <linux/types.h>
@@ -669,8 +667,6 @@ static int ipu_probe(struct platform_device *pdev)
 
 	register_ipu_device(ipu, id);
 
-	pm_runtime_enable(&pdev->dev);
-
 	return ret;
 }
 
@@ -756,19 +752,6 @@ int32_t ipu_init_channel(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel
 	uint32_t ipu_conf, reg, in_g_pixel_fmt, sec_dma;
 
 	dev_dbg(ipu->dev, "init channel = %d\n", IPU_CHAN_ID(channel));
-
-	ret = pm_runtime_get_sync(ipu->dev);
-	if (ret < 0) {
-		dev_err(ipu->dev, "ch = %d, pm_runtime_get failed:%d!\n",
-				IPU_CHAN_ID(channel), ret);
-		dump_stack();
-		return ret;
-	}
-	/*
-	 * Here, ret could be 1 if the device's runtime PM status was
-	 * already 'active', so clear it to be 0.
-	 */
-	ret = 0;
 
 	_ipu_get(ipu);
 
@@ -1108,7 +1091,6 @@ void ipu_uninit_channel(struct ipu_soc *ipu, ipu_channel_t channel)
 	uint32_t in_dma, out_dma = 0;
 	uint32_t ipu_conf;
 	uint32_t dc_chan = 0;
-	int ret;
 
 	mutex_lock(&ipu->mutex_lock);
 
@@ -1321,13 +1303,6 @@ void ipu_uninit_channel(struct ipu_soc *ipu, ipu_channel_t channel)
 	mutex_unlock(&ipu->mutex_lock);
 
 	_ipu_put(ipu);
-
-	ret = pm_runtime_put_sync_suspend(ipu->dev);
-	if (ret < 0) {
-		dev_err(ipu->dev, "ch = %d, pm_runtime_put failed:%d!\n",
-				IPU_CHAN_ID(channel), ret);
-		dump_stack();
-	}
 
 	WARN_ON(ipu->ic_use_count < 0);
 	WARN_ON(ipu->vdi_use_count < 0);
@@ -3401,28 +3376,6 @@ int ipu_ch_param_get_axi_id(struct ipu_soc *ipu, ipu_channel_t channel, ipu_buff
 }
 EXPORT_SYMBOL(ipu_ch_param_get_axi_id);
 
-#ifdef CONFIG_PM
-int ipu_runtime_suspend(struct device *dev)
-{
-	release_bus_freq(BUS_FREQ_HIGH);
-	dev_dbg(dev, "ipu busfreq high release.\n");
-
-	return 0;
-}
-
-int ipu_runtime_resume(struct device *dev)
-{
-	request_bus_freq(BUS_FREQ_HIGH);
-	dev_dbg(dev, "ipu busfreq high requst.\n");
-
-	return 0;
-}
-
-static const struct dev_pm_ops ipu_pm_ops = {
-	SET_RUNTIME_PM_OPS(ipu_runtime_suspend, ipu_runtime_resume, NULL)
-};
-#endif
-
 /*!
  * This structure contains pointers to the power management callback functions.
  */
@@ -3430,9 +3383,6 @@ static struct platform_driver mxcipu_driver = {
 	.driver = {
 			.name		= "imx-ipuv3",
 			.of_match_table	= imx_ipuv3_dt_ids,
-		#ifdef CONFIG_PM
-			.pm	= &ipu_pm_ops,
-		#endif
 	},
 	.probe		= ipu_probe,
 	.remove		= ipu_remove,

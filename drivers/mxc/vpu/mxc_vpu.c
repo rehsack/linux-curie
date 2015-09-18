@@ -49,7 +49,6 @@
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
 #include <linux/module.h>
-#include <linux/pm_runtime.h>
 #include <linux/sizes.h>
 #endif
 
@@ -61,14 +60,12 @@
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
-#include <linux/busfreq-imx.h>
 #include <linux/clk.h>
 #include <linux/genalloc.h>
 #include <linux/mxc_vpu.h>
 #include <linux/of.h>
 #include <linux/reset.h>
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
-#include <mach/busfreq.h>
 #include <mach/common.h>
 #else
 #include <asm/sizes.h>
@@ -141,10 +138,6 @@ static wait_queue_head_t vpu_queue;
 static int vpu_jpu_irq;
 #endif
 
-#ifdef CONFIG_PM
-static unsigned int regBk[64];
-static unsigned int pc_before_suspend;
-#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0) || LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 static struct regulator *vpu_regulator;
@@ -209,11 +202,6 @@ static long vpu_power_get(bool on)
 
 static void vpu_power_up(bool on)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
-	if (on)
-		pm_runtime_get_sync(vpu_dev);
-#endif
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0) || LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	if (on) {
@@ -232,10 +220,6 @@ static void vpu_power_up(bool on)
 #endif
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
-	if (!on)
-		pm_runtime_put_sync_suspend(vpu_dev);
-#endif
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
@@ -1009,10 +993,6 @@ static int vpu_dev_probe(struct platform_device *pdev)
 	}
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
-	pm_runtime_enable(&pdev->dev);
-#endif
-
 	vpu_data.workqueue = create_workqueue("vpu_wq");
 	INIT_WORK(&vpu_data.work, vpu_worker_callback);
 	mutex_init(&vpu_data.lock);
@@ -1032,9 +1012,6 @@ out:
 
 static int vpu_dev_remove(struct platform_device *pdev)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
-	pm_runtime_disable(&pdev->dev);
-#endif
 	free_irq(vpu_ipi_irq, &vpu_data);
 #ifdef MXC_VPU_HAS_JPU
 	free_irq(vpu_jpu_irq, &vpu_data);
@@ -1060,212 +1037,6 @@ static int vpu_dev_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
-static int vpu_suspend(struct device *dev)
-#else
-static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
-#endif
-{
-	int i;
-	unsigned long timeout;
-
-	mutex_lock(&vpu_data.lock);
-	if (open_count == 0) {
-		/* VPU is released (all instances are freed),
-		 * clock is already off, context is no longer needed,
-		 * power is already off on MX6,
-		 * gate power on MX51 */
-		if (cpu_is_mx51()) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0)
-			if (vpu_plat->pg)
-				vpu_plat->pg(1);
-#endif
-		}
-	} else {
-		/* Wait for vpu go to idle state, suspect vpu cannot be changed
-		   to idle state after about 1 sec */
-		timeout = jiffies + HZ;
-		clk_prepare(vpu_clk);
-		clk_enable(vpu_clk);
-		while (READ_REG(BIT_BUSY_FLAG)) {
-			msleep(1);
-			if (time_after(jiffies, timeout)) {
-				clk_disable(vpu_clk);
-				clk_unprepare(vpu_clk);
-				mutex_unlock(&vpu_data.lock);
-				return -EAGAIN;
-			}
-		}
-		clk_disable(vpu_clk);
-		clk_unprepare(vpu_clk);
-
-		/* Make sure clock is disabled before suspend */
-		vpu_clk_usercount = atomic_read(&clk_cnt_from_ioc);
-		for (i = 0; i < vpu_clk_usercount; i++) {
-			clk_disable(vpu_clk);
-			clk_unprepare(vpu_clk);
-		}
-
-		if (cpu_is_mx53()) {
-			mutex_unlock(&vpu_data.lock);
-			return 0;
-		}
-
-		if (bitwork_mem.cpu_addr != 0) {
-			clk_prepare(vpu_clk);
-			clk_enable(vpu_clk);
-			/* Save 64 registers from BIT_CODE_BUF_ADDR */
-			for (i = 0; i < 64; i++)
-				regBk[i] = READ_REG(BIT_CODE_BUF_ADDR + (i * 4));
-			pc_before_suspend = READ_REG(BIT_CUR_PC);
-			clk_disable(vpu_clk);
-			clk_unprepare(vpu_clk);
-		}
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0)
-		if (vpu_plat->pg)
-			vpu_plat->pg(1);
-#endif
-
-		/* If VPU is working before suspend, disable
-		 * regulator to make usecount right. */
-		vpu_power_up(false);
-	}
-
-	mutex_unlock(&vpu_data.lock);
-	return 0;
-}
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
-static int vpu_resume(struct device *dev)
-#else
-static int vpu_resume(struct platform_device *pdev)
-#endif
-{
-	int i;
-
-	mutex_lock(&vpu_data.lock);
-	if (open_count == 0) {
-		/* VPU is released (all instances are freed),
-		 * clock should be kept off, context is no longer needed,
-		 * power should be kept off on MX6,
-		 * disable power gating on MX51 */
-		if (cpu_is_mx51()) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0)
-			if (vpu_plat->pg)
-				vpu_plat->pg(0);
-#endif
-		}
-	} else {
-		if (cpu_is_mx53())
-			goto recover_clk;
-
-		/* If VPU is working before suspend, enable
-		 * regulator to make usecount right. */
-		vpu_power_up(true);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0)
-		if (vpu_plat->pg)
-			vpu_plat->pg(0);
-#endif
-
-		if (bitwork_mem.cpu_addr != 0) {
-			u32 *p = (u32 *) bitwork_mem.cpu_addr;
-			u32 data, pc;
-			u16 data_hi;
-			u16 data_lo;
-
-			clk_prepare(vpu_clk);
-			clk_enable(vpu_clk);
-
-			pc = READ_REG(BIT_CUR_PC);
-			if (pc) {
-				dev_warn(vpu_dev, "Not power off after suspend (PC=0x%x)\n", pc);
-				clk_disable(vpu_clk);
-				clk_unprepare(vpu_clk);
-				goto recover_clk;
-			}
-
-			/* Restore registers */
-			for (i = 0; i < 64; i++)
-				WRITE_REG(regBk[i], BIT_CODE_BUF_ADDR + (i * 4));
-
-			WRITE_REG(0x0, BIT_RESET_CTRL);
-			WRITE_REG(0x0, BIT_CODE_RUN);
-			/* MX6 RTL has a bug not to init MBC_SET_SUBBLK_EN on reset */
-#ifdef CONFIG_SOC_IMX6Q
-			WRITE_REG(0x0, MBC_SET_SUBBLK_EN);
-#endif
-
-			/*
-			 * Re-load boot code, from the codebuffer in external RAM.
-			 * Thankfully, we only need 4096 bytes, same for all platforms.
-			 */
-			for (i = 0; i < 2048; i += 4) {
-				data = p[(i / 2) + 1];
-				data_hi = (data >> 16) & 0xFFFF;
-				data_lo = data & 0xFFFF;
-				WRITE_REG((i << 16) | data_hi, BIT_CODE_DOWN);
-				WRITE_REG(((i + 1) << 16) | data_lo,
-						BIT_CODE_DOWN);
-
-				data = p[i / 2];
-				data_hi = (data >> 16) & 0xFFFF;
-				data_lo = data & 0xFFFF;
-				WRITE_REG(((i + 2) << 16) | data_hi,
-						BIT_CODE_DOWN);
-				WRITE_REG(((i + 3) << 16) | data_lo,
-						BIT_CODE_DOWN);
-			}
-
-			if (pc_before_suspend) {
-				WRITE_REG(0x1, BIT_BUSY_FLAG);
-				WRITE_REG(0x1, BIT_CODE_RUN);
-				while (READ_REG(BIT_BUSY_FLAG))
-					;
-			} else {
-				dev_warn(vpu_dev, "PC=0 before suspend\n");
-			}
-			clk_disable(vpu_clk);
-			clk_unprepare(vpu_clk);
-		}
-
-recover_clk:
-		/* Recover vpu clock */
-		for (i = 0; i < vpu_clk_usercount; i++) {
-			clk_prepare(vpu_clk);
-			clk_enable(vpu_clk);
-		}
-	}
-
-	mutex_unlock(&vpu_data.lock);
-	return 0;
-}
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
-static int vpu_runtime_suspend(struct device *dev)
-{
-	release_bus_freq(BUS_FREQ_HIGH);
-	return 0;
-}
-
-static int vpu_runtime_resume(struct device *dev)
-{
-	request_bus_freq(BUS_FREQ_HIGH);
-	return 0;
-}
-
-static const struct dev_pm_ops vpu_pm_ops = {
-	SET_RUNTIME_PM_OPS(vpu_runtime_suspend, vpu_runtime_resume, NULL)
-	SET_SYSTEM_SLEEP_PM_OPS(vpu_suspend, vpu_resume)
-};
-#endif
-
-#else
-#define	vpu_suspend	NULL
-#define	vpu_resume	NULL
-#endif				/* !CONFIG_PM */
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
 static const struct of_device_id vpu_of_match[] = {
 	{ .compatible = "fsl,imx6-vpu", },
@@ -1282,17 +1053,10 @@ static struct platform_driver mxcvpu_driver = {
 		   .name = "mxc_vpu",
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
 		   .of_match_table = vpu_of_match,
-#ifdef CONFIG_PM
-		   .pm = &vpu_pm_ops,
-#endif
 #endif
 		   },
 	.probe = vpu_dev_probe,
 	.remove = vpu_dev_remove,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0)
-	.suspend = vpu_suspend,
-	.resume = vpu_resume,
-#endif
 };
 
 static int __init vpu_init(void)

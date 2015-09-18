@@ -410,7 +410,7 @@ static int __init vdoa_iram_size_setup(char *options)
 {
 	int ret;
 
-	ret = strict_strtoul(options, 0, &iram_size);
+	ret = kstrtoul(options, 0, &iram_size);
 	if (ret)
 		iram_size = 0;
 	else
@@ -451,7 +451,7 @@ static int vdoa_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	vdoa->dev = dev;
 
-	vdoa->reg_base = devm_request_and_ioremap(&pdev->dev, res);
+	vdoa->reg_base = devm_ioremap_resource(&pdev->dev, res);
 	if (!vdoa->reg_base)
 		return -EBUSY;
 
