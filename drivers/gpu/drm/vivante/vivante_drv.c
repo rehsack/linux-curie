@@ -50,10 +50,12 @@
 #include <linux/version.h>
 #include <linux/module.h>
 
-#include "drmP.h"
-#include "vivante_drv.h"
+#include <drm/drmP.h>
+#include <drm/drm_mm.h>
+#include <drm/drm_legacy.h>
+#include <drm/drm_pciids.h>
 
-#include "drm_pciids.h"
+#include "vivante_drv.h"
 
 static char platformdevicename[] = "Vivante GCCore";
 static struct platform_device *pplatformdev;
@@ -63,7 +65,7 @@ static const struct file_operations viv_driver_fops = {
 	.open = drm_open,
 	.release = drm_release,
 	.unlocked_ioctl = drm_ioctl,
-	.mmap = drm_mmap,
+	.mmap = drm_legacy_mmap,
 	.poll = drm_poll,
 	.llseek = noop_llseek,
 };
