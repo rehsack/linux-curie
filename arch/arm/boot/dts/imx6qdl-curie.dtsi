@@ -2,6 +2,8 @@
  * Copyright 2015 Shanghai Zhixing Information Technology Co.,Ltd.
  */
 
+#include <dt-bindings/gpio/gpio.h>
+
 / {
 	system-rev = <0x00000000>;
 	system-serial-high = <0x00000000>;
@@ -33,7 +35,7 @@
 		compatible = "fsl,imx6q-audio-hdmi",
 			     "fsl,imx-audio-hdmi";
 		model = "imx-audio-hdmi";
-		hdmi-controller = <&hdmi_audio>;
+		/* hdmi-controller = <&hdmi_audio>; */
 	};
 
 	mxcfb1: fb@0 {
@@ -262,7 +264,7 @@
 	pinctrl-0 = <&pinctrl_i2c2>;
 	status = "okay";
 
-	hdmi: edid@50 {
+	hdmi_screen: edid@50 {
 		compatible = "fsl,imx6-hdmi-i2c";
 		reg = <0x50>;
 	};
@@ -375,11 +377,6 @@
 	};
 };
 
-&cpu0 {
-	arm-supply = <&reg_arm>; /* ldo_bypass:sw1a_reg; ldo_enabled:reg_arm */
-	soc-supply = <&reg_soc>; /* ldo_bypass:sw1c_reg; ldo_enabled:reg_soc */
-};
-
 &gpc {
 	/* use ldo-bypass, u-boot will check it and configure */
 	fsl,ldo-bypass = <0>;
@@ -427,7 +424,12 @@
 	status = "okay";
 };
 
-&hdmi_audio {
+&hdmi {
+        ddc-i2c-bus = <&i2c2>;
+        status = "okay";
+};
+
+/* &hdmi_audio {
 	status = "okay";
 };
 
@@ -447,7 +449,7 @@
 	fsl,phy_reg_vlev = <0x0294>;
 	fsl,phy_reg_cksymtx = <0x800d>;
 	status = "okay";
-};
+};*/
 
 &spdif {
 	pinctrl-names = "default";
