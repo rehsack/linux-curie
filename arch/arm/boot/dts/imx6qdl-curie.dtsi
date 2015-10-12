@@ -381,12 +381,26 @@
 &cpu0 {
 	arm-supply = <&reg_arm>; /* ldo_bypass:sw1a_reg; ldo_enabled:reg_arm */
 	soc-supply = <&reg_soc>; /* ldo_bypass:sw1c_reg; ldo_enabled:reg_soc */
+	pu-supply = <&reg_pu>; /* use pu_dummy if VDDSOC share with VDDPU */
 };
 
 &gpc {
 	/* use ldo-bypass, u-boot will check it and configure */
 	fsl,ldo-bypass = <0>;
 	fsl,wdog-reset = <1>;
+
+	/* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
+	pu-supply = <&reg_pu>;
+};
+
+&gpu {
+	/* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
+	pu-supply = <&reg_pu>;
+};
+
+&vpu {
+	/* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
+	pu-supply = <&reg_pu>;
 };
 
 &wdog1 {
