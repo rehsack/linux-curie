@@ -2563,11 +2563,9 @@ static void hotplug_worker(struct work_struct *work)
 
 			sprintf(event_string, "EVENT=plugin");
 			kobject_uevent_env(&hdmi->pdev->dev.kobj, KOBJ_CHANGE, envp);
-/*#ifdef CONFIG_MXC_HDMI_CEC
-			memcpy(&l, &hdmi->edid_cfg.physical_address, 4 *sizeof(u8));
-			mxc_hdmi_cec_handle(l);
+#ifdef CONFIG_MXC_HDMI_CEC
+			mxc_hdmi_cec_handle(0x80);
 #endif
-			hdmi_set_cable_state(1);*/
 		} else {
 			/* Plugout event */
 			dev_dbg(&hdmi->pdev->dev, "EVENT=plugout\n");
@@ -2578,7 +2576,7 @@ static void hotplug_worker(struct work_struct *work)
 			sprintf(event_string, "EVENT=plugout");
 			kobject_uevent_env(&hdmi->pdev->dev.kobj, KOBJ_CHANGE, envp);
 #ifdef CONFIG_MXC_HDMI_CEC
-			mxc_hdmi_cec_handle(0x0);
+			mxc_hdmi_cec_handle(0x100);
 #endif
 		}
 
