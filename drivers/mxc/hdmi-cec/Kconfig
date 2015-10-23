@@ -1,8 +1,8 @@
 
 menu "MXC HDMI CEC (Consumer Electronics Control) support"
 
-config MXC_HDMI_CEC
-	tristate "Support for MXC HDMI CEC (Consumer Electronics Control)"
+config MXC_HDMI_CEC_V30
+	tristate "Support for MXC HDMI CEC (Consumer Electronics Control) V3.0"
 	depends on MFD_MXC_HDMI
 	depends on FB_MXC_HDMI || DRM_IMX_HDMI
 	help
