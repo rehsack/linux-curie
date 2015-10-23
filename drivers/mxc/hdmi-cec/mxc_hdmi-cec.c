@@ -19,6 +19,8 @@
  * @ingroup HDMI
  */
 
+//#define DEBUG
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
@@ -123,7 +125,8 @@ static irqreturn_t mxc_hdmi_cec_isr(int irq, void *data)
 		else
 			cec_stat |= 0x100; /* Disconnected */
 	}
-	pr_debug("HDMI CEC interrupt received\n");
+	pr_debug("HDMI CEC interrupt received irq: %i, cec_stat: %u\n",
+			irq, cec_stat);
 	hdmi_cec->latest_cec_stat = cec_stat ;
 
 	schedule_delayed_work(&(hdmi_cec->hdmi_cec_work), msecs_to_jiffies(20));
@@ -290,6 +293,10 @@ static ssize_t hdmi_cec_read(struct file *file, char __user *buf, size_t count,
 	event = list_first_entry(&head, struct hdmi_cec_event, list);
 	list_del(&event->list);
 	mutex_unlock(&hdmi_cec_data.lock);
+
+	pr_debug("got: type:%i, msg_len:%i\n",
+			event->event_type, event->msg_len);
+
 	if (copy_to_user(buf, event,
 			 sizeof(struct hdmi_cec_event) - sizeof(struct list_head))) {
 		vfree(event);
@@ -496,8 +503,6 @@ static unsigned int hdmi_cec_poll(struct file *file, poll_table *wait)
 {
 	unsigned int mask = 0;
 
-	pr_debug("function : %s\n", __func__);
-
 	poll_wait(file, &hdmi_cec_queue, wait);
 
 	mutex_lock(&hdmi_cec_data.lock);
@@ -506,6 +511,9 @@ static unsigned int hdmi_cec_poll(struct file *file, poll_table *wait)
 	if (!list_empty(&head))
 			mask |= (POLLIN | POLLRDNORM);
 	mutex_unlock(&hdmi_cec_data.lock);
+
+	pr_debug("%s: mask: %u\n", __func__, mask);
+
 	return mask;
 }
 
