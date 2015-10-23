@@ -86,7 +86,6 @@ struct hdmi_cec_event {
 static LIST_HEAD(head);
 
 static int hdmi_cec_ready = 0;
-static int hdmi_cec_started;
 static int hdmi_cec_major;
 static struct class *hdmi_cec_class;
 static struct hdmi_cec_priv hdmi_cec_data;
@@ -370,7 +369,7 @@ void hdmi_cec_start_device(void)
 {
 	u8 val;
 
-	if (!hdmi_cec_ready || hdmi_cec_started)
+	if (!hdmi_cec_ready || hdmi_cec_data.cec_state)
 		return;
 
 	val = hdmi_readb(HDMI_MC_CLKDIS);
@@ -388,8 +387,6 @@ void hdmi_cec_start_device(void)
 	mutex_lock(&hdmi_cec_data.lock);
 	hdmi_cec_data.cec_state = true;
 	mutex_unlock(&hdmi_cec_data.lock);
-
-	hdmi_cec_started = 1;
 }
 EXPORT_SYMBOL(hdmi_cec_start_device);
 
@@ -397,7 +394,7 @@ void hdmi_cec_stop_device(void)
 { 
 	u8 val;
 
-	if (!hdmi_cec_ready || !hdmi_cec_started)
+	if (!hdmi_cec_ready || !hdmi_cec_data.cec_state)
 		return;
 
 	hdmi_writeb(0x10, HDMI_CEC_CTRL);
@@ -412,8 +409,6 @@ void hdmi_cec_stop_device(void)
 	mutex_lock(&hdmi_cec_data.lock);
 	hdmi_cec_data.cec_state = false;
 	mutex_unlock(&hdmi_cec_data.lock);
-
-	hdmi_cec_started = 0;
 }
 EXPORT_SYMBOL(hdmi_cec_stop_device);
 
@@ -589,6 +584,7 @@ static int hdmi_cec_dev_probe(struct platform_device *pdev)
 
 	dev_info(&pdev->dev, "HDMI CEC initialized\n");
 	hdmi_cec_ready = 1;
+
 	goto out;
 
 err_out_class:
@@ -609,7 +605,9 @@ static int hdmi_cec_dev_remove(struct platform_device *pdev)
 		class_destroy(hdmi_cec_class);
 		unregister_chrdev(hdmi_cec_major, "mxc_hdmi_cec");
 		hdmi_cec_major = 0;
-}
+	}
+
+	hdmi_cec_ready = 0;
 	return 0;
 }
 
