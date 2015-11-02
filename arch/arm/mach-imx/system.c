@@ -112,9 +112,19 @@ reset_fallback:
 	soft_restart(0);
 }
 
+static void __init mxc_arch_reset_init_prepare_wdg_base(void)
+{
+	struct device_node *np = NULL;
+
+	if (cpu_is_imx6q() || cpu_is_imx6dl()) {
+		np = of_find_compatible_node(NULL, NULL, "fsl,imx6q-src");
+		if (np)
+			src_base = of_iomap(np, 0);
+	}
+}
+
 void __init mxc_arch_reset_init(void __iomem *base)
 {
-	struct device_node *np_src = NULL;
 	wdog_base = base;
 
 	wdog_clk = clk_get_sys("imx2-wdt.0", NULL);
@@ -123,11 +133,7 @@ void __init mxc_arch_reset_init(void __iomem *base)
 	else
 		clk_prepare(wdog_clk);
 
-	if (cpu_is_imx6q() || cpu_is_imx6dl()) {
-		np_src = of_find_compatible_node(NULL, NULL, "fsl,imx6q-src");
-		if (np_src)
-			src_base = of_iomap(np_src, 0);
-	}
+	mxc_arch_reset_init_prepare_wdg_base();
 }
 
 void __init mxc_arch_reset_init_dt(void)
@@ -163,6 +169,8 @@ void __init mxc_arch_reset_init_dt(void)
         }
 
         clk_prepare(wdog_clk);
+
+	mxc_arch_reset_init_prepare_wdg_base();
 }
 
 #ifdef CONFIG_CACHE_L2X0
