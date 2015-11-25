@@ -427,8 +427,8 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_usdhc3>;
 	bus-width = <8>;
-	cd-gpios = <&gpio6 8 0>;
-	wp-gpios = <&gpio6 15 0>;
+	cd-gpios = <&gpio6 8 GPIO_ACTIVE_LOW>;
+	wp-gpios = <&gpio6 15 GPIO_ACTIVE_HIGH>;
 	no-1-8-v;
 	keep-power-in-suspend;
 	enable-sdio-wakeup;
