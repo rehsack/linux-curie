@@ -3199,6 +3199,10 @@ static void fbcon_new_modelist(struct fb_info *info)
 		if (!fb_display[i].mode)
 			continue;
 		vc = vc_cons[i].d;
+		if (!vc) {
+			pr_err("%s: vc is NULL\n", __func__);
+			continue;
+		}
 		display_to_var(&var, &fb_display[i]);
 		mode = fb_find_nearest_mode(fb_display[i].mode,
 					    &info->modelist);
