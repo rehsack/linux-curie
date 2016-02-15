@@ -344,7 +344,10 @@ static const struct of_dev_auxdata imx6q_auxdata_lookup[] __initconst = {
 
 static void curie_pm_power_off(void)
 {
-	/* do nothing */
+	/* stay here forever */
+	while (1) {
+		msleep(1000);
+	}
 }
 
 static void pm_power_off_init(void)
