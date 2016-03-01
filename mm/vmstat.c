@@ -1389,7 +1389,15 @@ static void vmstat_update(struct work_struct *w)
 		 */
 		r = cpumask_test_and_set_cpu(smp_processor_id(),
 			cpu_stat_off);
-		VM_BUG_ON(r);
+
+		if (r) {
+			if (has_powerd_off)
+				pr_err("%s: encountered a problem, but system "
+						"already powerd off\n",
+						__func__);
+			else
+				VM_BUG_ON(r);
+		}
 	}
 }
 
