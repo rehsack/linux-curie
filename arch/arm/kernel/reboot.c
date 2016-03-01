@@ -24,6 +24,9 @@ void (*arm_pm_restart)(enum reboot_mode reboot_mode, const char *cmd);
 void (*pm_power_off)(void);
 EXPORT_SYMBOL(pm_power_off);
 
+int has_powerd_off;
+EXPORT_SYMBOL(has_powerd_off);
+
 /*
  * A temporary stack to use for CPU reset. This is static so that we
  * don't clobber it with the identity mapping. When running with this
@@ -119,6 +122,8 @@ void machine_power_off(void)
 {
 	local_irq_disable();
 	smp_send_stop();
+
+	has_powerd_off = 1;
 
 	if (pm_power_off)
 		pm_power_off();
