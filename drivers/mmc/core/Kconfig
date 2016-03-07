@@ -11,3 +11,11 @@ config MMC_CLKGATE
 	  support handling this in order for it to be of any use.
 
 	  If unsure, say N.
+
+config SDIO_DEBUG_BUFFER
+	bool "MMC debug buffer"
+	depends on DEBUG_FS
+	help
+	  Log Data send/received over the sdio bus for debugging purpose.
+
+	  If unsure, say N.

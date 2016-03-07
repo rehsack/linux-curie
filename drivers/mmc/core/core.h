@@ -85,6 +85,13 @@ void mmc_remove_host_debugfs(struct mmc_host *host);
 void mmc_add_card_debugfs(struct mmc_card *card);
 void mmc_remove_card_debugfs(struct mmc_card *card);
 
+int mmc_alloc_sdio_buf_debugfs(struct mmc_host *host);
+void mmc_free_sdio_buf_debugfs(struct mmc_host *host);
+void mmc_add_cmd2buf_debugfs(struct mmc_host *host, unsigned int addr, int sz, int write, u8 *w, u8 *r, int ret);
+
+void mmc_sdio_buf_start_recording(struct mmc_host *host);
+void mmc_sdio_buf_stop_recording(struct mmc_host *host);
+
 void mmc_init_context_info(struct mmc_host *host);
 
 int mmc_execute_tuning(struct mmc_card *card);

@@ -15,6 +15,7 @@
 #include <linux/mmc/sdio.h>
 #include <linux/mmc/sdio_func.h>
 
+#include "core.h"
 #include "sdio_ops.h"
 
 /**
@@ -373,6 +374,9 @@ u8 sdio_readb(struct sdio_func *func, unsigned int addr, int *err_ret)
 		*err_ret = 0;
 
 	ret = mmc_io_rw_direct(func->card, 0, func->num, addr, 0, &val);
+#ifdef CONFIG_SDIO_DEBUG_BUFFER
+	mmc_add_cmd2buf_debugfs(func->card->host, addr, 1, 0, NULL, &val, ret);
+#endif
 	if (ret) {
 		if (err_ret)
 			*err_ret = ret;
@@ -401,6 +405,9 @@ void sdio_writeb(struct sdio_func *func, u8 b, unsigned int addr, int *err_ret)
 	BUG_ON(!func);
 
 	ret = mmc_io_rw_direct(func->card, 1, func->num, addr, b, NULL);
+#ifdef CONFIG_SDIO_DEBUG_BUFFER
+	mmc_add_cmd2buf_debugfs(func->card->host, addr, 1, 1, &b, NULL, ret);
+#endif
 	if (err_ret)
 		*err_ret = ret;
 }
@@ -427,6 +434,9 @@ u8 sdio_writeb_readb(struct sdio_func *func, u8 write_byte,
 
 	ret = mmc_io_rw_direct(func->card, 1, func->num, addr,
 			write_byte, &val);
+#ifdef CONFIG_SDIO_DEBUG_BUFFER
+	mmc_add_cmd2buf_debugfs(func->card->host, addr, 1, 1, &write_byte, &val, ret);
+#endif
 	if (err_ret)
 		*err_ret = ret;
 	if (ret)
@@ -449,7 +459,11 @@ EXPORT_SYMBOL_GPL(sdio_writeb_readb);
 int sdio_memcpy_fromio(struct sdio_func *func, void *dst,
 	unsigned int addr, int count)
 {
-	return sdio_io_rw_ext_helper(func, 0, addr, 1, dst, count);
+	int ret = sdio_io_rw_ext_helper(func, 0, addr, 1, dst, count);
+#ifdef CONFIG_SDIO_DEBUG_BUFFER
+	mmc_add_cmd2buf_debugfs(func->card->host, addr, count, 0, NULL, dst, ret);
+#endif
+	return ret;
 }
 EXPORT_SYMBOL_GPL(sdio_memcpy_fromio);
 
@@ -466,7 +480,11 @@ EXPORT_SYMBOL_GPL(sdio_memcpy_fromio);
 int sdio_memcpy_toio(struct sdio_func *func, unsigned int addr,
 	void *src, int count)
 {
-	return sdio_io_rw_ext_helper(func, 1, addr, 1, src, count);
+	int ret = sdio_io_rw_ext_helper(func, 1, addr, 1, src, count);
+#ifdef CONFIG_SDIO_DEBUG_BUFFER
+	mmc_add_cmd2buf_debugfs(func->card->host, addr, count, 1, &src, NULL, ret);
+#endif
+	return ret;
 }
 EXPORT_SYMBOL_GPL(sdio_memcpy_toio);
 
@@ -483,7 +501,11 @@ EXPORT_SYMBOL_GPL(sdio_memcpy_toio);
 int sdio_readsb(struct sdio_func *func, void *dst, unsigned int addr,
 	int count)
 {
-	return sdio_io_rw_ext_helper(func, 0, addr, 0, dst, count);
+	int ret = sdio_io_rw_ext_helper(func, 0, addr, 0, dst, count);
+#ifdef CONFIG_SDIO_DEBUG_BUFFER
+	mmc_add_cmd2buf_debugfs(func->card->host, addr, count, 0, NULL, dst, ret);
+#endif
+	return ret;
 }
 EXPORT_SYMBOL_GPL(sdio_readsb);
 
@@ -500,7 +522,11 @@ EXPORT_SYMBOL_GPL(sdio_readsb);
 int sdio_writesb(struct sdio_func *func, unsigned int addr, void *src,
 	int count)
 {
-	return sdio_io_rw_ext_helper(func, 1, addr, 0, src, count);
+	int ret = sdio_io_rw_ext_helper(func, 1, addr, 0, src, count);
+#ifdef CONFIG_SDIO_DEBUG_BUFFER
+	mmc_add_cmd2buf_debugfs(func->card->host, addr, count, 1, &src, NULL, ret);
+#endif
+	return ret;
 }
 EXPORT_SYMBOL_GPL(sdio_writesb);
 
@@ -629,6 +655,9 @@ unsigned char sdio_f0_readb(struct sdio_func *func, unsigned int addr,
 		*err_ret = 0;
 
 	ret = mmc_io_rw_direct(func->card, 0, 0, addr, 0, &val);
+#ifdef CONFIG_SDIO_DEBUG_BUFFER
+	mmc_add_cmd2buf_debugfs(func->card->host, addr, 1, 0, NULL, &val, ret);
+#endif
 	if (ret) {
 		if (err_ret)
 			*err_ret = ret;
