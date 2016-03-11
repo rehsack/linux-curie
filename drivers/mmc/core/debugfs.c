@@ -30,6 +30,47 @@ module_param(fail_request, charp, 0);
 
 #endif /* CONFIG_FAIL_MMC_REQUEST */
 
+enum mmc_sdio_buf_c_type {
+	MMC_CMD_BUF_TYPE_NULL = 0,
+	MMC_CMD_BUF_TYPE_READ,
+	MMC_CMD_BUF_TYPE_WRITE,
+	MMC_CMD_BUF_TYPE_READ_WRITE
+};
+
+enum mmc_sdio_buf_c_size {
+	MMC_CMD_BUF_SIZE_NULL = 0,
+	MMC_CMD_BUF_SIZE_BYTE,
+	MMC_CMD_BUF_SIZE_WORD,
+	MMC_CMD_BUF_SIZE_LONG
+};
+
+struct mmc_sdio_buf_c {
+	struct timespec tp;
+
+	enum mmc_sdio_buf_c_type type;
+	enum mmc_sdio_buf_c_size size;
+	unsigned int addr;
+	u8 w[4];
+	u8 r[4];
+	int ret;
+};
+
+struct mmc_sdio_buf {
+	u8 record;
+
+	u64 size;
+	u64 total;
+	u64 offset;
+
+	struct mutex cb_mutex;
+
+	u32 oflow_count;
+	struct timespec rec_start;
+	struct timespec oflow_last, oflow_short, oflow_long, oflow_avg;
+
+	struct mmc_sdio_buf_c **cmds;
+};
+
 /* The debugfs functions are optimized away when CONFIG_DEBUG_FS isn't set. */
 static int mmc_ios_show(struct seq_file *s, void *data)
 {
@@ -208,6 +249,407 @@ static int mmc_clock_opt_set(void *data, u64 val)
 DEFINE_SIMPLE_ATTRIBUTE(mmc_clock_fops, mmc_clock_opt_get, mmc_clock_opt_set,
 	"%llu\n");
 
+static void _mmc_sdio_buf_reset(struct mmc_host *host)
+{
+	struct mmc_sdio_buf *sdio_buf = host->sdio_buf;
+
+	sdio_buf->total = 0;
+	sdio_buf->offset = 0;
+	sdio_buf->record = 1;
+	get_monotonic_boottime(&sdio_buf->rec_start);
+
+	sdio_buf->oflow_count = 0;
+	sdio_buf->oflow_last.tv_sec  = sdio_buf->rec_start.tv_sec;
+	sdio_buf->oflow_last.tv_nsec = sdio_buf->rec_start.tv_nsec;
+	sdio_buf->oflow_short.tv_sec = sdio_buf->oflow_short.tv_nsec = 0;
+	sdio_buf->oflow_long.tv_sec  = sdio_buf->oflow_long.tv_nsec  = 0;
+	sdio_buf->oflow_avg.tv_sec   = sdio_buf->oflow_avg.tv_nsec   = 0;
+}
+
+static int _mmc_alloc_sdio_buf_debugfs(struct mmc_host *host, u64 sz)
+{
+	struct mmc_sdio_buf *sdio_buf;
+	u64 i;
+
+	sdio_buf = kzalloc(sizeof(struct mmc_sdio_buf), GFP_KERNEL);
+	host->sdio_buf = sdio_buf;
+
+	mutex_init(&sdio_buf->cb_mutex);
+
+	if (!sdio_buf) {
+		dev_err(&host->class_dev, "failed to alloc sdio_buf\n");
+		return(-1);
+	}
+
+	sdio_buf->size = sz;
+	sdio_buf->cmds = kzalloc(sizeof(struct mmc_sdio_buf_c*) * sz, GFP_KERNEL);
+
+	if (!sdio_buf->cmds) {
+		dev_err(&host->class_dev, "failed to alloc sdio_bufs buffer\n");
+		mmc_free_sdio_buf_debugfs(host);
+		return(-1);
+	}
+
+	for (i = 0; i < sdio_buf->size; i++) {
+		sdio_buf->cmds[i] =
+			kzalloc(sizeof(struct mmc_sdio_buf_c), GFP_KERNEL);
+		if (!sdio_buf->cmds[i]) {
+			dev_err(&host->class_dev,
+				"failed to alloc sdio_bufs(%llu) buffer\n", i);
+			sdio_buf->size = i;
+			mmc_free_sdio_buf_debugfs(host);
+			return(-1);
+		}
+	}
+
+	_mmc_sdio_buf_reset(host);
+
+	return(0);
+}
+
+int mmc_alloc_sdio_buf_debugfs(struct mmc_host *host) {
+	return _mmc_alloc_sdio_buf_debugfs(host, 128);
+}
+
+void mmc_free_sdio_buf_debugfs(struct mmc_host *host)
+{
+	struct mmc_sdio_buf *sdio_buf = host->sdio_buf;
+	u64 i;
+
+	if (sdio_buf) {
+		mutex_destroy(&sdio_buf->cb_mutex);
+
+		if (sdio_buf->cmds)
+			for (i = 0; i < sdio_buf->size; i++)
+				kfree(sdio_buf->cmds[i]);
+			kfree(sdio_buf->cmds);
+		kfree(sdio_buf);
+	}
+	host->sdio_buf = NULL;
+}
+
+#define NSEC_IN_SEC 1000000000
+
+// void mmc_add_cmd2buf_debugfs(struct mmc_host *host, struct mmc_command *cmd)
+void mmc_add_cmd2buf_debugfs(struct mmc_host *host, unsigned int addr, int sz, int write, u8 *w, u8 *r, int ret)
+{
+	struct mmc_sdio_buf *sdio_buf = host->sdio_buf;
+	struct mmc_sdio_buf_c *c;
+	int has_overflown = 0, i;
+
+	if (!sdio_buf->record)
+		return;
+
+	mutex_lock(&sdio_buf->cb_mutex);
+
+	sdio_buf->total++;
+	if ((sdio_buf->size - 1) <= sdio_buf->offset) {
+		sdio_buf->offset = 0;
+		has_overflown = 1;
+	} else {
+		sdio_buf->offset++;
+	}
+
+	c = sdio_buf->cmds[sdio_buf->offset];
+
+	get_monotonic_boottime(&c->tp);
+
+	c->addr = addr;
+
+	if (write) {
+		c->type = (!r) ?  MMC_CMD_BUF_TYPE_WRITE :
+			MMC_CMD_BUF_TYPE_READ_WRITE;
+	} else {
+		c->type = MMC_CMD_BUF_TYPE_READ;
+	}
+
+	switch (sz) {
+		case 1:
+			c->size = MMC_CMD_BUF_SIZE_BYTE;
+			break;
+		case 2:
+			c->size = MMC_CMD_BUF_SIZE_WORD;
+			break;
+		case 4:
+			c->size = MMC_CMD_BUF_SIZE_LONG;
+			break;
+		default:
+			c->size = MMC_CMD_BUF_SIZE_NULL;
+	}
+
+	for (i = 0; i < 4; i++) {
+		c->w[i] = 0;
+		c->r[i] = 0;
+
+		if (i < sz) {
+			if (w)
+				c->w[i] = w[i];
+			if (r)
+				c->r[i] = r[i];
+		}
+	}
+
+	c->ret = ret;
+
+	if (has_overflown) {
+		struct timespec tp;
+		u32 x;
+
+		tp.tv_sec  = c->tp.tv_sec  - sdio_buf->oflow_last.tv_sec;
+		tp.tv_nsec = c->tp.tv_nsec - sdio_buf->oflow_last.tv_nsec;
+
+		if (tp.tv_nsec < 0) {
+			tp.tv_sec -= 1;
+			tp.tv_nsec += NSEC_IN_SEC;
+		}
+
+		/* last */
+		sdio_buf->oflow_last.tv_sec  = c->tp.tv_sec;
+		sdio_buf->oflow_last.tv_nsec = c->tp.tv_nsec;
+
+		/* longest */
+		if (sdio_buf->oflow_count == 0 ||
+				sdio_buf->oflow_long.tv_sec < tp.tv_sec ||
+				(sdio_buf->oflow_long.tv_sec == tp.tv_sec &&
+				sdio_buf->oflow_long.tv_nsec < tp.tv_nsec)) {
+			sdio_buf->oflow_long.tv_sec  = tp.tv_sec;
+			sdio_buf->oflow_long.tv_nsec = tp.tv_nsec;
+		}
+
+		/* shortest */
+		if (sdio_buf->oflow_count == 0 ||
+				sdio_buf->oflow_short.tv_sec > tp.tv_sec ||
+				(sdio_buf->oflow_short.tv_sec == tp.tv_sec &&
+				sdio_buf->oflow_short.tv_nsec > tp.tv_nsec)) {
+			sdio_buf->oflow_short.tv_sec  = tp.tv_sec;
+			sdio_buf->oflow_short.tv_nsec = tp.tv_nsec;
+		}
+
+		sdio_buf->oflow_count++;
+
+		/* avg */
+
+		tp.tv_sec  = c->tp.tv_sec  - sdio_buf->rec_start.tv_sec;
+		tp.tv_nsec = c->tp.tv_nsec - sdio_buf->rec_start.tv_nsec;
+
+		if (tp.tv_nsec < 0) {
+			tp.tv_sec -= 1;
+			tp.tv_nsec += NSEC_IN_SEC;
+		}
+
+		x = tp.tv_sec % sdio_buf->oflow_count;
+
+		sdio_buf->oflow_avg.tv_sec  = tp.tv_sec / sdio_buf->oflow_count;
+		sdio_buf->oflow_avg.tv_nsec = tp.tv_nsec /sdio_buf->oflow_count;
+		sdio_buf->oflow_avg.tv_nsec += x * (NSEC_IN_SEC /
+				sdio_buf->oflow_count);
+	}
+
+	mutex_unlock(&sdio_buf->cb_mutex);
+}
+
+static int mmc_sdio_buf_show_h(struct seq_file *s, struct mmc_sdio_buf_c *c)
+{
+	char *t = NULL, *x = NULL;
+
+	switch (c->type) {
+		case MMC_CMD_BUF_TYPE_READ:
+			t = "R ";
+			break;
+		case MMC_CMD_BUF_TYPE_WRITE:
+			t = " W";
+			break;
+		case MMC_CMD_BUF_TYPE_READ_WRITE:
+			t = "RW";
+			break;
+		case MMC_CMD_BUF_TYPE_NULL:
+		default:
+			t = "??";
+			break;
+	}
+
+	switch (c->size) {
+		case MMC_CMD_BUF_SIZE_BYTE:
+			x = "b ";
+			break;
+		case MMC_CMD_BUF_SIZE_WORD:
+			x = "w ";
+			break;
+		case MMC_CMD_BUF_SIZE_LONG:
+			x = "l ";
+			break;
+		case MMC_CMD_BUF_SIZE_NULL:
+		default:
+			x = "??";
+			break;
+	}
+
+	seq_printf(s, "[%li.%09li] %s ADDR:0x%08x SZ:%s ",
+		c->tp.tv_sec, c->tp.tv_nsec, t, c->addr, x);
+
+	if (c->type != MMC_CMD_BUF_TYPE_READ)
+		seq_printf(s, "W:0x%02x%02x%02x%02x ",
+			c->w[0], c->w[1], c->w[2], c->w[3]);
+	else
+		seq_printf(s, "            ");
+
+	if (c->type != MMC_CMD_BUF_TYPE_WRITE)
+		seq_printf(s, "R:0x%02x%02x%02x%02x ",
+			c->r[0], c->r[1], c->r[2], c->r[3]);
+	else
+		seq_printf(s, "            ");
+
+	seq_printf(s, "ret=%i\n", c->ret);
+
+	return 0;
+}
+
+static int mmc_sdio_buf_show(struct seq_file *s, void *data)
+{
+	struct mmc_host	*host = s->private;
+	struct mmc_sdio_buf *sdio_buf = host->sdio_buf;
+	u64 i;
+
+	mutex_lock(&sdio_buf->cb_mutex);
+
+	if (sdio_buf->oflow_count) {
+		for (i = sdio_buf->offset + 1; i < sdio_buf->size; i++) {
+			mmc_sdio_buf_show_h(s, sdio_buf->cmds[i]);
+		}
+	}
+
+	for (i = 0; i <= sdio_buf->offset; i++) {
+		mmc_sdio_buf_show_h(s, sdio_buf->cmds[i]);
+	}
+
+	mutex_unlock(&sdio_buf->cb_mutex);
+
+	return 0;
+}
+
+static int mmc_sdio_buf_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, mmc_sdio_buf_show, inode->i_private);
+}
+
+static const struct file_operations mmc_sdio_buf_fops = {
+	.open		= mmc_sdio_buf_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+static int mmc_sdio_buf_size_get(void *data, u64 *val)
+{
+	struct mmc_host *host = data;
+	struct mmc_sdio_buf *sdio_buf = host->sdio_buf;
+
+	*val = sdio_buf->size;
+
+	return 0;
+}
+
+static int mmc_sdio_buf_size_set(void *data, u64 val)
+{
+	struct mmc_host *host = data;
+	struct mmc_sdio_buf *sdio_buf = host->sdio_buf;
+	int ret = 0;
+
+	if (val != sdio_buf->size) {
+		mmc_free_sdio_buf_debugfs(host);
+		ret = _mmc_alloc_sdio_buf_debugfs(host, val);
+	}
+
+	return ret;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(mmc_sdio_buf_size_fops, mmc_sdio_buf_size_get,
+	mmc_sdio_buf_size_set, "%llu\n");
+
+static int mmc_sdio_buf_offset_get(void *data, u64 *val)
+{
+	struct mmc_host *host = data;
+	struct mmc_sdio_buf *sdio_buf = host->sdio_buf;
+
+	*val = sdio_buf->offset;
+
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(mmc_sdio_buf_offset_fops, mmc_sdio_buf_offset_get,
+	NULL, "%llu\n");
+
+static int mmc_sdio_buf_stats_show(struct seq_file *s, void *data)
+{
+	struct mmc_host	*host = s->private;
+	struct mmc_sdio_buf *sdio_buf = host->sdio_buf;
+
+	seq_printf(s, "last overflow at [%li.%09li]\n",
+		sdio_buf->oflow_last.tv_sec, sdio_buf->oflow_last.tv_nsec);
+	seq_printf(s, "Overflow count: %u\n", sdio_buf->oflow_count);
+	seq_printf(s, "Total commands: %llu\n", sdio_buf->total);
+
+	seq_printf(s, "shortest period till overflow: %li.%09li\n",
+		sdio_buf->oflow_short.tv_sec, sdio_buf->oflow_short.tv_nsec);
+	seq_printf(s, "longest period till overflow: %li.%09li\n",
+		sdio_buf->oflow_long.tv_sec, sdio_buf->oflow_long.tv_nsec);
+	seq_printf(s, "average period till overflow: %li.%09li\n",
+		sdio_buf->oflow_avg.tv_sec, sdio_buf->oflow_avg.tv_nsec);
+
+	return 0;
+}
+
+static int mmc_sdio_buf_stats_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, mmc_sdio_buf_stats_show, inode->i_private);
+}
+
+static const struct file_operations mmc_sdio_buf_stats_fops = {
+	.open		= mmc_sdio_buf_stats_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+void mmc_sdio_buf_start_recording(struct mmc_host *host)
+{
+	struct mmc_sdio_buf *sdio_buf = host->sdio_buf;
+	if (!sdio_buf->record) {
+		_mmc_sdio_buf_reset(host);
+	}
+}
+
+void mmc_sdio_buf_stop_recording(struct mmc_host *host)
+{
+	struct mmc_sdio_buf *sdio_buf = host->sdio_buf;
+	sdio_buf->record = 0;
+}
+
+static int mmc_sdio_buf_recording_get(void *data, u64 *val)
+{
+	struct mmc_host *host = data;
+	struct mmc_sdio_buf *sdio_buf = host->sdio_buf;
+
+	*val = sdio_buf->record;
+
+	return 0;
+}
+
+static int mmc_sdio_buf_recording_set(void *data, u64 val)
+{
+	struct mmc_host *host = data;
+
+	if (val)
+		mmc_sdio_buf_start_recording(host);
+	else
+		mmc_sdio_buf_stop_recording(host);
+
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(mmc_sdio_buf_recording_fops, mmc_sdio_buf_recording_get,
+	mmc_sdio_buf_recording_set, "%llu\n");
+
 void mmc_add_host_debugfs(struct mmc_host *host)
 {
 	struct dentry *root;
@@ -230,6 +672,26 @@ void mmc_add_host_debugfs(struct mmc_host *host)
 			&mmc_clock_fops))
 		goto err_node;
 
+#ifdef CONFIG_SDIO_DEBUG_BUFFER
+	if (!debugfs_create_file("sdio_buf", S_IRUSR, root, host,
+			&mmc_sdio_buf_fops))
+		goto err_node;
+
+	if (!debugfs_create_file("sdio_buf_size", S_IRUSR | S_IWUSR, root, host,
+			&mmc_sdio_buf_size_fops))
+		goto err_node;
+
+	if (!debugfs_create_file("sdio_buf_offset", S_IRUSR, root, host,
+			&mmc_sdio_buf_offset_fops))
+		goto err_node;
+
+	if (!debugfs_create_file("sdio_buf_stats", S_IRUSR, root, host,
+			&mmc_sdio_buf_stats_fops))
+		goto err_node;
+	if (!debugfs_create_file("sdio_buf_recording", S_IRUSR | S_IWUSR,
+			root, host, &mmc_sdio_buf_recording_fops))
+		goto err_node;
+#endif
 #ifdef CONFIG_MMC_CLKGATE
 	if (!debugfs_create_u32("clk_delay", (S_IRUSR | S_IWUSR),
 				root, &host->clk_delay))

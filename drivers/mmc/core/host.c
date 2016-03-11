@@ -515,6 +515,13 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 	host->max_blk_size = 512;
 	host->max_blk_count = PAGE_CACHE_SIZE / 512;
 
+	if ((err = mmc_alloc_sdio_buf_debugfs(host))) {
+		dev_err(&host->class_dev, "alloc of cmd buf failed with %i\n",
+				err);
+		put_device(&host->class_dev);
+		return NULL;
+	}
+
 	return host;
 }
 
@@ -588,6 +595,7 @@ EXPORT_SYMBOL(mmc_remove_host);
  */
 void mmc_free_host(struct mmc_host *host)
 {
+	mmc_free_sdio_buf_debugfs(host);
 	mmc_pwrseq_free(host);
 	put_device(&host->class_dev);
 }
