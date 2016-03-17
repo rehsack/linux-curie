@@ -322,7 +322,8 @@ static ssize_t hdmi_cec_write(struct file *file, const char __user *buf,
 		return -EACCES;
 	}
 	/* Ensure that there is only one writer who is the only listener of tx_cec_queue */
-	if (hdmi_cec_data.tx_answer != CEC_TX_AVAIL) {
+	if (hdmi_cec_data.tx_answer != CEC_TX_AVAIL &&
+			hdmi_cec_data.tx_answer != HDMI_IH_CEC_STAT0_DONE) {
 		mutex_unlock(&hdmi_cec_data.lock);
 		return -EBUSY;
 	}
@@ -501,7 +502,8 @@ static unsigned int hdmi_cec_poll(struct file *file, poll_table *wait)
 	poll_wait(file, &hdmi_cec_queue, wait);
 
 	mutex_lock(&hdmi_cec_data.lock);
-	if (hdmi_cec_data.tx_answer == CEC_TX_AVAIL)
+	if (hdmi_cec_data.tx_answer == CEC_TX_AVAIL ||
+			hdmi_cec_data.tx_answer == HDMI_IH_CEC_STAT0_DONE)
 		mask =  (POLLOUT | POLLWRNORM);
 	if (!list_empty(&head))
 			mask |= (POLLIN | POLLRDNORM);
